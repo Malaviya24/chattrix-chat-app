@@ -78,9 +78,9 @@ app.use(session({
     ttl: 24 * 60 * 60 // 24 hours
   }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Set to false for now to fix CORS issues
     httpOnly: true,
-    sameSite: 'strict',
+    sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));

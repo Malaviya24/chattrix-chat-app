@@ -22,7 +22,6 @@ class ApiService {
       const response = await fetch(`${API_BASE_URL}/api/rooms`, {
         method: 'POST',
         headers,
-        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
@@ -49,7 +48,6 @@ class ApiService {
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
         headers,
-        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
@@ -70,7 +68,6 @@ class ApiService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Accept': 'application/json'
         }
