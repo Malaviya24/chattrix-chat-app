@@ -5,42 +5,30 @@ class ApiService {
     this.csrfToken = null;
   }
 
-  // Get CSRF token
+  // Get CSRF token (temporarily disabled)
   async getCSRFToken() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/csrf-token`, {
-        method: 'GET',
-        credentials: 'include'
-      });
-      const data = await response.json();
-      this.csrfToken = data.csrfToken;
-      return this.csrfToken;
-    } catch (error) {
-      console.error('Failed to get CSRF token:', error);
-      return null;
-    }
+    // Temporarily return null to skip CSRF
+    return null;
   }
 
   // Create room
   async createRoom(nickname, password) {
     try {
-      if (!this.csrfToken) {
-        await this.getCSRFToken();
-      }
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
 
       const response = await fetch(`${API_BASE_URL}/api/rooms`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': this.csrfToken
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create room');
+        throw new Error(errorData.error || `Failed to create room: ${response.status}`);
       }
 
       return await response.json();
@@ -53,23 +41,21 @@ class ApiService {
   // Join room
   async joinRoom(roomId, nickname, password) {
     try {
-      if (!this.csrfToken) {
-        await this.getCSRFToken();
-      }
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
 
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': this.csrfToken
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to join room');
+        throw new Error(errorData.error || `Failed to join room: ${response.status}`);
       }
 
       return await response.json();
@@ -84,12 +70,15 @@ class ApiService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get room info');
+        throw new Error(errorData.error || `Failed to get room info: ${response.status}`);
       }
 
       return await response.json();
@@ -111,4 +100,5 @@ class ApiService {
   }
 }
 
-export default new ApiService(); 
+const apiService = new ApiService();
+export default apiService; 

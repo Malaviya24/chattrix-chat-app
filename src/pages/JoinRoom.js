@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import apiService from '../services/api';
@@ -6,37 +6,44 @@ import apiService from '../services/api';
 const JoinRoom = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const roomIdFromUrl = searchParams.get('roomId');
-  
+  const [roomId, setRoomId] = useState('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const roomIdFromUrl = searchParams.get('roomId');
+    if (roomIdFromUrl) {
+      setRoomId(roomIdFromUrl);
+    }
+  }, [searchParams]);
 
   const handleJoinRoom = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    if (!nickname.trim() || !password.trim()) {
+    if (!roomId.trim() || !nickname.trim() || !password.trim()) {
       setError('Please fill in all fields');
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await apiService.joinRoom(roomIdFromUrl, nickname, password);
+      const response = await apiService.joinRoom(roomId, nickname, password);
       
       // Store user session data
       localStorage.setItem('userSession', JSON.stringify({
-        sessionId: response.user.sessionId,
-        nickname: response.user.nickname,
-        roomId: response.user.roomId,
-        encryptionKey: response.encryptionKey
+        sessionId: response.sessionId,
+        encryptionKey: response.encryptionKey,
+        roomId: roomId,
+        nickname: nickname
       }));
 
       // Navigate to chat room
-      navigate(`/room/${roomIdFromUrl}`);
+      navigate(`/room/${roomId}`);
     } catch (error) {
       setError(error.message || 'Failed to join room');
     } finally {
@@ -45,41 +52,53 @@ const JoinRoom = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <motion.div
-        className="card max-w-md w-full bg-white dark:bg-gray-800 shadow-lg"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Join Chat Room</h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            {roomIdFromUrl ? `Joining room: ${roomIdFromUrl}` : 'Enter room details'}
-          </p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-20 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+      </div>
 
-        {!roomIdFromUrl ? (
-          <div className="text-center">
-            <p className="text-gray-600 dark:text-gray-300 mb-4">No room ID provided in the URL.</p>
-            <button
-              onClick={() => navigate('/')}
-              className="btn-primary"
-            >
-              Back to Home
-            </button>
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+        <motion.div
+          className="max-w-md w-full bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 shadow-2xl p-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
+              Join Chat Room
+            </h1>
+            <p className="text-gray-300">Enter the room details to join the conversation</p>
           </div>
-        ) : (
-          <form onSubmit={handleJoinRoom} className="space-y-4">
+
+          <form onSubmit={handleJoinRoom} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-3">
+                Room ID
+              </label>
+              <input
+                type="text"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm"
+                placeholder="Enter room ID"
+                required
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">
                 Your Nickname
               </label>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                className="input-field dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm"
                 placeholder="Enter your nickname"
                 required
                 disabled={isLoading}
@@ -87,50 +106,74 @@ const JoinRoom = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-3">
                 Room Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                placeholder="Enter room password"
-                required
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm"
+                  placeholder="Enter room password"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-white transition-colors"
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             {error && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm"
+                className="bg-red-500/20 border border-red-400/50 text-red-300 px-4 py-3 rounded-xl text-sm"
               >
                 {error}
               </motion.div>
             )}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
-            >
-              {isLoading ? 'Joining Room...' : 'Join Room'}
-            </button>
-
-            <div className="text-center">
-              <button
+            <div className="space-y-3">
+              <motion.button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isLoading ? 'Joining Room...' : '🚀 Join Room'}
+              </motion.button>
+              
+              <motion.button
                 type="button"
                 onClick={() => navigate('/')}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                className="w-full bg-white/10 border border-white/20 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:bg-white/20"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                Back to Home
-              </button>
+                ← Back to Home
+              </motion.button>
             </div>
           </form>
-        )}
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };
