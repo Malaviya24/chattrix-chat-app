@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: chattrix-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://chattrix-chat-app.netlify.app
+      - key: MONGODB_URI
+        sync: false 
