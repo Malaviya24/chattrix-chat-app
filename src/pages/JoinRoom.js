@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTheme } from '../utils/ThemeContext';
 import apiService from '../services/api';
 
 const JoinRoom = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isDarkMode } = useTheme();
   const [roomId, setRoomId] = useState('');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
@@ -52,48 +54,58 @@ const JoinRoom = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Matrix-style background */}
+    <div className={`min-h-screen relative overflow-hidden transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      {/* Animated Background */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-green-900/20 via-black to-green-900/20"></div>
-        <div className="absolute top-20 left-20 w-72 h-72 bg-green-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob"></div>
-        <div className="absolute top-40 right-20 w-72 h-72 bg-emerald-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-lime-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-4000"></div>
-      </div>
-
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="w-full h-full" style={{
-          backgroundImage: `linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px)`,
-          backgroundSize: '50px 50px'
-        }}></div>
+        <div className={`absolute top-20 left-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob ${
+          isDarkMode ? 'bg-purple-500' : 'bg-purple-300'
+        }`}></div>
+        <div className={`absolute top-40 right-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000 ${
+          isDarkMode ? 'bg-cyan-500' : 'bg-cyan-300'
+        }`}></div>
+        <div className={`absolute -bottom-8 left-40 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000 ${
+          isDarkMode ? 'bg-blue-500' : 'bg-blue-300'
+        }`}></div>
       </div>
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <motion.div
-          className="max-w-md w-full bg-black/50 backdrop-blur-sm rounded-3xl border border-green-400/30 shadow-2xl p-8"
+          className={`max-w-md w-full backdrop-blur-sm rounded-3xl border shadow-2xl p-8 ${
+            isDarkMode 
+              ? 'bg-white/10 border-white/20' 
+              : 'bg-white/90 border-gray-200'
+          }`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 mb-2">
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
               Join Chat Room
             </h1>
-            <p className="text-green-300">Enter the room details to join the conversation</p>
+            <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Enter the room details to join the conversation</p>
           </div>
 
           <form onSubmit={handleJoinRoom} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-green-300 mb-3">
+              <label className={`block text-sm font-medium mb-3 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Room ID
               </label>
               <input
                 type="text"
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
-                className="w-full px-4 py-3 bg-black/50 border border-green-400/30 rounded-xl text-green-300 placeholder-green-500 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 backdrop-blur-sm"
+                className={`w-full px-4 py-3 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm ${
+                  isDarkMode 
+                    ? 'bg-white/10 border-white/20 text-white' 
+                    : 'bg-white/80 border-gray-200 text-gray-800'
+                }`}
                 placeholder="Enter room ID"
                 required
                 disabled={isLoading}
@@ -101,14 +113,20 @@ const JoinRoom = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-green-300 mb-3">
+              <label className={`block text-sm font-medium mb-3 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Your Nickname
               </label>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                className="w-full px-4 py-3 bg-black/50 border border-green-400/30 rounded-xl text-green-300 placeholder-green-500 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 backdrop-blur-sm"
+                className={`w-full px-4 py-3 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm ${
+                  isDarkMode 
+                    ? 'bg-white/10 border-white/20 text-white' 
+                    : 'bg-white/80 border-gray-200 text-gray-800'
+                }`}
                 placeholder="Enter your nickname"
                 required
                 disabled={isLoading}
@@ -116,7 +134,9 @@ const JoinRoom = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-green-300 mb-3">
+              <label className={`block text-sm font-medium mb-3 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Room Password
               </label>
               <div className="relative">
@@ -124,7 +144,11 @@ const JoinRoom = () => {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 bg-black/50 border border-green-400/30 rounded-xl text-green-300 placeholder-green-500 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 backdrop-blur-sm"
+                  className={`w-full px-4 py-3 pr-12 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm ${
+                    isDarkMode 
+                      ? 'bg-white/10 border-white/20 text-white' 
+                      : 'bg-white/80 border-gray-200 text-gray-800'
+                  }`}
                   placeholder="Enter room password"
                   required
                   disabled={isLoading}
@@ -132,7 +156,7 @@ const JoinRoom = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-green-400 hover:text-green-300 transition-colors"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-white transition-colors"
                   disabled={isLoading}
                 >
                   {showPassword ? (
@@ -164,7 +188,7 @@ const JoinRoom = () => {
               <motion.button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 text-black font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 border-2 border-green-400"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -174,7 +198,11 @@ const JoinRoom = () => {
               <motion.button
                 type="button"
                 onClick={() => navigate('/')}
-                className="w-full bg-black/50 border border-green-400/30 text-green-400 font-bold py-4 px-6 rounded-xl transition-all duration-300 hover:bg-black/70 hover:border-green-400/60"
+                className={`w-full border font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 ${
+                  isDarkMode 
+                    ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' 
+                    : 'bg-white/80 border-gray-200 text-gray-800 hover:bg-white/90'
+                }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >

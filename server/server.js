@@ -131,8 +131,20 @@ app.post('/api/rooms',
       
       await room.save();
       
+      // Create user session for the creator
+      const sessionId = encryption.generateRoomId();
+      const user = new User({
+        sessionId,
+        roomId,
+        nickname,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      });
+      
+      await user.save();
+      
       res.json({
         roomId,
+        sessionId,
         encryptionKey,
         message: 'Room created successfully',
         expiresAt: room.expiresAt
