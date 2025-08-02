@@ -70,8 +70,8 @@ const LandingPage = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            Experience the future of secure communication with self-destructing messages, 
-            real-time encryption, and anonymous chat rooms
+            Experience the future of secure communication with military-grade encryption, 
+            CSRF protection, self-destructing messages, and anonymous chat rooms
           </motion.p>
 
           {/* Action Buttons */}
@@ -102,7 +102,7 @@ const LandingPage = () => {
 
           {/* Features Grid */}
           <motion.div 
-            className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.0 }}
@@ -154,6 +154,22 @@ const LandingPage = () => {
                 isDarkMode ? 'text-white' : 'text-gray-800'
               }`}>Panic Mode</h3>
               <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Instantly clear all messages with one click</p>
+            </div>
+
+            <div className={`backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 ${
+              isDarkMode 
+                ? 'bg-white/10 border-white/20 hover:bg-white/20' 
+                : 'bg-white/80 border-gray-200 hover:bg-white/90'
+            }`}>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className={`text-xl font-semibold mb-2 ${
+                isDarkMode ? 'text-white' : 'text-gray-800'
+              }`}>CSRF Protection</h3>
+              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Cryptographic tokens prevent cross-site attacks</p>
             </div>
           </motion.div>
 

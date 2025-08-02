@@ -3,25 +3,55 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://chattrix-chat-app
 class ApiService {
   constructor() {
     this.csrfToken = null;
+    this.tokenExpiry = null;
   }
 
-  // Get CSRF token (temporarily disabled)
+  // Get CSRF token with enhanced security
   async getCSRFToken() {
-    // Temporarily return null to skip CSRF
-    return null;
+    try {
+      // Check if we have a valid token
+      if (this.csrfToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
+        return this.csrfToken;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/csrf-token`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get CSRF token: ${response.status}`);
+      }
+
+      const data = await response.json();
+      this.csrfToken = data.csrfToken;
+      this.tokenExpiry = Date.now() + (23 * 60 * 60 * 1000); // 23 hours (refresh before 24h expiry)
+      
+      return this.csrfToken;
+    } catch (error) {
+      console.error('CSRF token error:', error);
+      throw error;
+    }
   }
 
-  // Create room
+  // Create room with CSRF protection
   async createRoom(nickname, password) {
     try {
+      const csrfToken = await this.getCSRFToken();
+      
       const headers = {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-CSRF-Token': csrfToken
       };
 
       const response = await fetch(`${API_BASE_URL}/api/rooms`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
@@ -37,17 +67,21 @@ class ApiService {
     }
   }
 
-  // Join room
+  // Join room with CSRF protection
   async joinRoom(roomId, nickname, password) {
     try {
+      const csrfToken = await this.getCSRFToken();
+      
       const headers = {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-CSRF-Token': csrfToken
       };
 
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
@@ -68,6 +102,7 @@ class ApiService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
         method: 'GET',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json'
         }

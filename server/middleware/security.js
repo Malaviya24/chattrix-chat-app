@@ -3,6 +3,35 @@ const helmet = require('helmet');
 const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 
+// Enhanced CSRF token generation with cryptographic security
+const generateSecureCSRFToken = () => {
+  const randomBytes = crypto.randomBytes(32);
+  const timestamp = Date.now().toString();
+  const data = `${randomBytes.toString('hex')}:${timestamp}`;
+  const hash = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'your-secret-key').update(data).digest('hex');
+  return `${data}:${hash}`;
+};
+
+// Validate CSRF token with cryptographic verification
+const validateCSRFToken = (token) => {
+  try {
+    const parts = token.split(':');
+    if (parts.length !== 3) return false;
+    
+    const [randomBytes, timestamp, hash] = parts;
+    const data = `${randomBytes}:${timestamp}`;
+    const expectedHash = crypto.createHmac('sha256', process.env.SESSION_SECRET || 'your-secret-key').update(data).digest('hex');
+    
+    // Check if token is not expired (24 hours)
+    const tokenAge = Date.now() - parseInt(timestamp);
+    if (tokenAge > 24 * 60 * 60 * 1000) return false;
+    
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(expectedHash, 'hex'));
+  } catch (error) {
+    return false;
+  }
+};
+
 // Rate limiting middleware
 const createRateLimiter = (windowMs, max, message) => {
   return rateLimit({
@@ -33,16 +62,20 @@ const roomCreationLimiter = createRateLimiter(
   'Too many room creations. Please try again later.'
 );
 
-// Input sanitization middleware
+// Enhanced input sanitization middleware
 const sanitizeInput = (req, res, next) => {
   const sanitize = (obj) => {
     for (let key in obj) {
       if (typeof obj[key] === 'string') {
-        // Remove potentially dangerous characters
+        // Enhanced XSS protection
         obj[key] = obj[key]
           .replace(/[<>]/g, '') // Remove < and >
           .replace(/javascript:/gi, '') // Remove javascript: protocol
           .replace(/on\w+=/gi, '') // Remove event handlers
+          .replace(/data:/gi, '') // Remove data: protocol
+          .replace(/vbscript:/gi, '') // Remove vbscript: protocol
+          .replace(/expression\(/gi, '') // Remove CSS expressions
+          .replace(/url\(/gi, '') // Remove CSS url()
           .trim();
       } else if (typeof obj[key] === 'object' && obj[key] !== null) {
         sanitize(obj[key]);
@@ -56,29 +89,41 @@ const sanitizeInput = (req, res, next) => {
   next();
 };
 
-// CSRF protection middleware
+// Enhanced CSRF protection middleware
 const csrfProtection = (req, res, next) => {
   if (req.method === 'GET') {
     return next();
   }
 
   const csrfToken = req.headers['x-csrf-token'];
-  const sessionToken = req.session?.csrfToken;
+  
+  if (!csrfToken) {
+    return res.status(403).json({ 
+      error: 'CSRF token missing',
+      message: 'Security token required for this request'
+    });
+  }
 
-  if (!csrfToken || !sessionToken || csrfToken !== sessionToken) {
-    return res.status(403).json({ error: 'CSRF token validation failed' });
+  if (!validateCSRFToken(csrfToken)) {
+    return res.status(403).json({ 
+      error: 'CSRF token validation failed',
+      message: 'Invalid or expired security token'
+    });
   }
 
   next();
 };
 
-// Generate CSRF token
+// Generate CSRF token with enhanced security
 const generateCSRFToken = (req, res, next) => {
   if (!req.session) {
     req.session = {};
   }
   
-  req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+  // Generate cryptographically secure token
+  req.session.csrfToken = generateSecureCSRFToken();
+  req.session.csrfTokenCreated = Date.now();
+  
   next();
 };
 
