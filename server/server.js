@@ -106,8 +106,8 @@ app.get('/api/csrf-token', generateCSRFToken, (req, res) => {
 // Create room endpoint
 app.post('/api/rooms', 
   roomCreationLimiter,
-  generateCSRFToken,
-  csrfProtection,
+  // generateCSRFToken,  // Temporarily disabled
+  // csrfProtection,     // Temporarily disabled
   validateRoomCreation,
   async (req, res) => {
     try {
@@ -146,8 +146,8 @@ app.post('/api/rooms',
 // Join room endpoint
 app.post('/api/rooms/:roomId/join',
   authLimiter,
-  generateCSRFToken,
-  csrfProtection,
+  // generateCSRFToken,  // Temporarily disabled
+  // csrfProtection,     // Temporarily disabled
   validateJoinRoom,
   async (req, res) => {
     try {
