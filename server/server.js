@@ -125,6 +125,7 @@ app.post('/api/rooms',
         creator: nickname,
         nickname,
         encryptionKey,
+        isActive: true,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       });
       

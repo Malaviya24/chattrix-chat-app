@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
+import { useTheme } from '../utils/ThemeContext';
 import apiService from '../services/api';
 
 const CreateRoom = () => {
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [roomId, setRoomId] = useState('');
@@ -102,39 +104,49 @@ const CreateRoom = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Animated Background */}
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Matrix-style background */}
       <div className="absolute inset-0">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-20 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-green-900/20 via-black to-green-900/20"></div>
+        <div className="absolute top-20 left-20 w-72 h-72 bg-green-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob"></div>
+        <div className="absolute top-40 right-20 w-72 h-72 bg-emerald-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-40 w-72 h-72 bg-lime-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-4000"></div>
+      </div>
+
+      {/* Grid pattern overlay */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="w-full h-full" style={{
+          backgroundImage: `linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px)`,
+          backgroundSize: '50px 50px'
+        }}></div>
       </div>
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <motion.div
-          className="max-w-md w-full bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 shadow-2xl p-8"
+          className="max-w-md w-full bg-black/50 backdrop-blur-sm rounded-3xl border border-green-400/30 shadow-2xl p-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 mb-2">
               Create Secure Room
             </h1>
-            <p className="text-gray-300">Set up your private, encrypted chat room</p>
+            <p className="text-green-300">Set up your private, encrypted chat room</p>
           </div>
 
           {!roomId ? (
             <form onSubmit={handleCreateRoom} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
+                <label className="block text-sm font-medium text-green-300 mb-3">
                   Your Nickname
                 </label>
                 <input
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm"
+                  className="w-full px-4 py-3 bg-black/50 border border-green-400/30 rounded-xl text-green-300 placeholder-green-500 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 backdrop-blur-sm"
                   placeholder="Enter your nickname"
                   required
                   disabled={isLoading}
@@ -142,7 +154,7 @@ const CreateRoom = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
+                <label className="block text-sm font-medium text-green-300 mb-3">
                   Room Password
                 </label>
                 <div className="relative">
@@ -153,8 +165,8 @@ const CreateRoom = () => {
                       setPassword(e.target.value);
                       if (passwordError) setPasswordError('');
                     }}
-                    className={`w-full px-4 py-3 pr-24 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm ${
-                      passwordError ? 'border-red-400 focus:ring-red-400' : ''
+                    className={`w-full px-4 py-3 pr-24 bg-black/50 border rounded-xl text-green-300 placeholder-green-500 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 backdrop-blur-sm ${
+                      passwordError ? 'border-red-400 focus:ring-red-400' : 'border-green-400/30'
                     }`}
                     placeholder="Create a strong password"
                     required
@@ -164,7 +176,7 @@ const CreateRoom = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="p-2 text-gray-400 hover:text-white transition-colors"
+                      className="p-2 text-green-400 hover:text-green-300 transition-colors"
                       disabled={isLoading}
                     >
                       {showPassword ? (
@@ -182,7 +194,7 @@ const CreateRoom = () => {
                     <button
                       type="button"
                       onClick={generatePassword}
-                      className="px-2 py-1 text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-200"
+                      className="px-2 py-1 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-bold rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200"
                       disabled={isLoading}
                     >
                       Generate
@@ -192,22 +204,22 @@ const CreateRoom = () => {
                 {passwordError && (
                   <p className="text-red-400 text-sm mt-2">{passwordError}</p>
                 )}
-                <div className="mt-3 text-xs text-gray-400">
+                <div className="mt-3 text-xs text-green-400">
                   <p className="mb-2">Password requirements:</p>
                   <div className="grid grid-cols-2 gap-1">
-                    <div className={`flex items-center space-x-1 ${password.length >= 8 ? 'text-green-400' : 'text-gray-500'}`}>
+                    <div className={`flex items-center space-x-1 ${password.length >= 8 ? 'text-green-400' : 'text-green-600'}`}>
                       <span>{password.length >= 8 ? '✓' : '○'}</span>
                       <span>8+ characters</span>
                     </div>
-                    <div className={`flex items-center space-x-1 ${/[A-Z]/.test(password) ? 'text-green-400' : 'text-gray-500'}`}>
+                    <div className={`flex items-center space-x-1 ${/[A-Z]/.test(password) ? 'text-green-400' : 'text-green-600'}`}>
                       <span>{/[A-Z]/.test(password) ? '✓' : '○'}</span>
                       <span>Uppercase</span>
                     </div>
-                    <div className={`flex items-center space-x-1 ${/[a-z]/.test(password) ? 'text-green-400' : 'text-gray-500'}`}>
+                    <div className={`flex items-center space-x-1 ${/[a-z]/.test(password) ? 'text-green-400' : 'text-green-600'}`}>
                       <span>{/[a-z]/.test(password) ? '✓' : '○'}</span>
                       <span>Lowercase</span>
                     </div>
-                    <div className={`flex items-center space-x-1 ${/[0-9]/.test(password) ? 'text-green-400' : 'text-gray-500'}`}>
+                    <div className={`flex items-center space-x-1 ${/[0-9]/.test(password) ? 'text-green-400' : 'text-green-600'}`}>
                       <span>{/[0-9]/.test(password) ? '✓' : '○'}</span>
                       <span>Number</span>
                     </div>
@@ -228,7 +240,7 @@ const CreateRoom = () => {
               <motion.button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100"
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 text-black font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 border-2 border-green-400"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -243,39 +255,39 @@ const CreateRoom = () => {
               className="space-y-6"
             >
               <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-semibold text-white mb-2">Room Created Successfully!</h2>
-                <p className="text-gray-300">Share this link with others to join your room</p>
+                <h2 className="text-2xl font-bold text-green-400 mb-2">Room Created Successfully!</h2>
+                <p className="text-green-300">Share this link with others to join your room</p>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="bg-black/50 backdrop-blur-sm rounded-xl p-4 border border-green-400/30">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-300">Room ID:</span>
+                  <span className="text-sm font-medium text-green-300">Room ID:</span>
                   <button
                     onClick={() => copyToClipboard(roomId)}
-                    className="text-cyan-400 hover:text-cyan-300 text-sm font-medium"
+                    className="text-green-400 hover:text-green-300 text-sm font-medium"
                   >
                     Copy
                   </button>
                 </div>
-                <p className="text-sm text-gray-400 break-all font-mono">{roomId}</p>
+                <p className="text-sm text-green-400 break-all font-mono">{roomId}</p>
               </div>
 
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+              <div className="bg-black/50 backdrop-blur-sm rounded-xl p-4 border border-green-400/30">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-300">Room Link:</span>
+                  <span className="text-sm font-medium text-green-300">Room Link:</span>
                   <button
                     onClick={() => copyToClipboard(roomLink)}
-                    className="text-cyan-400 hover:text-cyan-300 text-sm font-medium"
+                    className="text-green-400 hover:text-green-300 text-sm font-medium"
                   >
                     Copy
                   </button>
                 </div>
-                <p className="text-sm text-gray-400 break-all">{roomLink}</p>
+                <p className="text-sm text-green-400 break-all">{roomLink}</p>
               </div>
 
               <div className="flex justify-center">
@@ -287,7 +299,7 @@ const CreateRoom = () => {
               <div className="space-y-3">
                 <motion.button
                   onClick={() => navigate(`/room/${roomId}`)}
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-black font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 border-green-400"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -295,7 +307,7 @@ const CreateRoom = () => {
                 </motion.button>
                 <motion.button
                   onClick={() => navigate('/')}
-                  className="w-full bg-white/10 border border-white/20 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:bg-white/20"
+                  className="w-full bg-black/50 border border-green-400/30 text-green-400 font-bold py-4 px-6 rounded-xl transition-all duration-300 hover:bg-black/70 hover:border-green-400/60"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
