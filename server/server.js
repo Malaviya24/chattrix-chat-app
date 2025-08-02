@@ -137,6 +137,7 @@ app.post('/api/rooms',
         sessionId,
         roomId,
         nickname,
+        isActive: true,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       });
       
@@ -191,6 +192,7 @@ app.post('/api/rooms/:roomId/join',
         sessionId,
         roomId,
         nickname,
+        isActive: true,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       });
       

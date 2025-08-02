@@ -41,7 +41,8 @@ const JoinRoom = () => {
         sessionId: response.sessionId,
         encryptionKey: response.encryptionKey,
         roomId: roomId,
-        nickname: nickname
+        nickname: nickname,
+        password: password // Store password temporarily for immediate join
       }));
 
       // Navigate to chat room

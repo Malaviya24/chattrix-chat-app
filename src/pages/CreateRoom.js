@@ -93,7 +93,8 @@ const CreateRoom = () => {
         sessionId: response.sessionId || 'temp-session',
         encryptionKey: response.encryptionKey,
         roomId: newRoomId,
-        nickname: nickname
+        nickname: nickname,
+        password: password // Store password temporarily for immediate join
       }));
     } catch (error) {
       setError(error.message || 'Failed to create room');
