@@ -40,13 +40,31 @@ class ApiService {
   // Create room with enhanced security
   async createRoom(nickname, password, maxUsers = 10) {
     try {
-      // Temporarily bypass CSRF for testing
+      // Get CSRF token first
+      const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf-token`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      let csrfToken = null;
+      if (csrfResponse.ok) {
+        const csrfData = await csrfResponse.json();
+        csrfToken = csrfData.csrfToken;
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/rooms`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
+        headers,
+        credentials: 'include',
         body: JSON.stringify({ nickname, password, maxUsers })
       });
 
@@ -65,14 +83,31 @@ class ApiService {
   // Join room with CSRF protection
   async joinRoom(roomId, nickname, password) {
     try {
+      // Get CSRF token first
+      const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf-token`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      let csrfToken = null;
+      if (csrfResponse.ok) {
+        const csrfData = await csrfResponse.json();
+        csrfToken = csrfData.csrfToken;
+      }
+
       const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       };
+      
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
