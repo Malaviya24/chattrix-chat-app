@@ -196,7 +196,7 @@ app.post('/api/rooms',
           encryptionKey,
           maxUsers: Math.min(Math.max(maxUsers, 1), 50), // Ensure between 1-50
           isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours for better user experience
         });
         
         await room.save();
@@ -208,7 +208,7 @@ app.post('/api/rooms',
           roomId,
           nickname,
           isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours for better user experience
         });
         
         await user.save();
@@ -223,7 +223,7 @@ app.post('/api/rooms',
       } else {
         // Use in-memory store
         const sessionId = encryption.generateRoomId();
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         
         inMemoryStore.rooms.set(roomId, {
           roomId,
@@ -306,7 +306,7 @@ app.post('/api/rooms/:roomId/join',
           roomId,
           nickname,
           isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours for better user experience
         });
         
         await user.save();
@@ -351,7 +351,7 @@ app.post('/api/rooms/:roomId/join',
           roomId,
           nickname,
           isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
         });
         
         res.json({
@@ -513,7 +513,7 @@ io.on('connection', (socket) => {
             roomId,
             nickname,
             isActive: true,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
           });
           await user.save();
         } else {
@@ -522,7 +522,7 @@ io.on('connection', (socket) => {
             roomId,
             nickname,
             isActive: true,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
           };
           inMemoryStore.users.set(newSessionId, user);
         }
@@ -601,7 +601,7 @@ io.on('connection', (socket) => {
             roomId,
             nickname,
             isActive: true,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
           });
           await newUser.save();
         } else {
@@ -610,7 +610,7 @@ io.on('connection', (socket) => {
             roomId,
             nickname,
             isActive: true,
-            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
           };
           inMemoryStore.users.set(newSessionId, newUser);
         }
@@ -650,7 +650,7 @@ io.on('connection', (socket) => {
         sender: nickname,
         encryptedContent: text,
         iv: 'placeholder',
-        expiresAt: expiresAt || new Date(Date.now() + 15 * 60 * 1000),
+        expiresAt: expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: new Date()
       };
       
