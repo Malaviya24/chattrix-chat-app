@@ -19,52 +19,29 @@ const roomSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    expires: 24 * 60 * 60 // Auto-delete after 24 hours (TTL Index)
+  encryptionKey: {
+    type: String,
+    required: true
   },
   isActive: {
     type: Boolean,
     default: true
   },
-  settings: {
-    messageExpiry: {
-      type: Number,
-      default: 5 * 60 * 1000 // 5 minutes in milliseconds
-    },
-    maxUsers: {
-      type: Number,
-      default: 10
-    },
-    allowAnonymous: {
-      type: Boolean,
-      default: true
-    },
-    requirePassword: {
-      type: Boolean,
-      default: true
-    }
-  },
-  encryptionKey: {
-    type: String,
-    required: true
-  },
-  messageCount: {
+  maxUsers: {
     type: Number,
-    default: 0
+    default: 10,
+    min: 1,
+    max: 50
   },
-  lastActivity: {
+  createdAt: {
     type: Date,
     default: Date.now
+  },
+  expiresAt: {
+    type: Date,
+    required: true,
+    index: { expireAfterSeconds: 0 }
   }
-}, {
-  timestamps: true
 });
-
-// Index for efficient queries
-roomSchema.index({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 });
-roomSchema.index({ roomId: 1 });
-roomSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('Room', roomSchema); 

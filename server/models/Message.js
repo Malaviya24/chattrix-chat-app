@@ -29,39 +29,17 @@ const messageSchema = new mongoose.Schema({
   },
   readBy: [{
     nickname: String,
-    readAt: {
-      type: Date,
-      default: Date.now
-    }
+    readAt: Date
   }],
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
   expiresAt: {
     type: Date,
     required: true,
-    index: true
-  },
-  messageType: {
-    type: String,
-    enum: ['text', 'system', 'panic'],
-    default: 'text'
-  },
-  isVisible: {
-    type: Boolean,
-    default: true
-  },
-  encryptionKeyRotation: {
-    type: Number,
-    default: 0
+    index: { expireAfterSeconds: 0 }
   }
-}, {
-  timestamps: true
 });
-
-// TTL Index for auto-delete after expiration
-messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-// Indexes for efficient queries
-messageSchema.index({ roomId: 1, createdAt: -1 });
-messageSchema.index({ messageId: 1 });
-messageSchema.index({ isRead: 1 });
 
 module.exports = mongoose.model('Message', messageSchema); 

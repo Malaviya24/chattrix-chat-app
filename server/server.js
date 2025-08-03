@@ -111,7 +111,7 @@ app.post('/api/rooms',
   validateRoomCreation,
   async (req, res) => {
     try {
-      const { nickname, password } = req.body;
+      const { nickname, password, maxUsers = 10 } = req.body;
       
       // Generate room ID and encryption key
       const roomId = encryption.generateRoomId();
@@ -125,6 +125,7 @@ app.post('/api/rooms',
         creator: nickname,
         nickname,
         encryptionKey,
+        maxUsers: Math.min(Math.max(maxUsers, 1), 50), // Ensure between 1-50
         isActive: true,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       });
@@ -182,7 +183,7 @@ app.post('/api/rooms/:roomId/join',
       
       // Check room capacity
       const userCount = await User.countDocuments({ roomId, isActive: true });
-      if (userCount >= room.settings.maxUsers) {
+      if (userCount >= room.maxUsers) {
         return res.status(403).json({ error: 'Room is full' });
       }
       
@@ -259,6 +260,13 @@ io.on('connection', (socket) => {
       const isValidPassword = await encryption.comparePassword(password, room.password);
       if (!isValidPassword) {
         socket.emit('error', { message: 'Incorrect password' });
+        return;
+      }
+      
+      // Check room capacity
+      const userCount = await User.countDocuments({ roomId, isActive: true });
+      if (userCount >= room.maxUsers) {
+        socket.emit('error', { message: 'Room is full' });
         return;
       }
       
@@ -350,7 +358,7 @@ io.on('connection', (socket) => {
         sender: nickname,
         encryptedContent,
         iv,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
       });
       
       await message.save();

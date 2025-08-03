@@ -1,119 +1,148 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTheme } from '../utils/ThemeContext';
+import { generateAvatar } from '../utils/avatar';
 import socketService from '../services/socket';
 
 const ChatRoom = () => {
-  const navigate = useNavigate();
   const { roomId } = useParams();
-  
+  const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [users, setUsers] = useState([]);
+  const [isConnecting, setIsConnecting] = useState(true);
   const [isInvisible, setIsInvisible] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [screenshotWarning, setScreenshotWarning] = useState(false);
+  const [userSession, setUserSession] = useState(null);
+  const messagesEndRef = useRef(null);
 
-  // Get user session data
-  const userSession = useMemo(() => {
-    const session = localStorage.getItem('userSession');
-    return session ? JSON.parse(session) : null;
-  }, []);
-
+  // Load user session from localStorage
   useEffect(() => {
-    if (!userSession) {
-      navigate('/join');
-      return;
+    const session = localStorage.getItem('userSession');
+    if (session) {
+      setUserSession(JSON.parse(session));
+    } else {
+      navigate('/');
     }
+  }, [navigate]);
 
-    setCurrentUser({
-      nickname: userSession.nickname,
-      roomId: userSession.roomId
-    });
-
-    // Connect to socket and join room
-    const joinRoom = async () => {
-      try {
-        const roomInfo = await socketService.joinRoom(
-          roomId,
-          userSession.nickname,
-          userSession.password || '', // You might need to store password temporarily
-          userSession.sessionId
-        );
-
-        setMessages(roomInfo.messages || []);
-        setIsConnected(true);
-
-        // Set up socket listeners
-        socketService.onNewMessage((message) => {
-          setMessages(prev => [...prev, message]);
-        });
-
-        socketService.onUserJoined((data) => {
-          // Add system message for user joined
-          setMessages(prev => [...prev, {
-            id: Date.now(),
-            sender: 'System',
-            text: data.message,
-            timestamp: new Date(),
-            isSystem: true
-          }]);
-        });
-
-        socketService.onUserLeft((data) => {
-          // Add system message for user left
-          setMessages(prev => [...prev, {
-            id: Date.now(),
-            sender: 'System',
-            text: data.message,
-            timestamp: new Date(),
-            isSystem: true
-          }]);
-        });
-
-        socketService.onPanicMode((data) => {
-          setMessages([]);
-          alert('Panic mode activated! All messages have been cleared.');
-        });
-
-        socketService.onError((error) => {
-          setError(error.message);
-        });
-
-      } catch (error) {
-        setError(error.message);
-        console.error('Failed to join room:', error);
+  // Screenshot detection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Detect common screenshot shortcuts
+      if (
+        (e.ctrlKey && e.key === 'p') || // Ctrl+P (Print)
+        (e.ctrlKey && e.shiftKey && e.key === 'I') || // Ctrl+Shift+I (DevTools)
+        (e.ctrlKey && e.shiftKey && e.key === 'C') || // Ctrl+Shift+C (DevTools)
+        (e.metaKey && e.shiftKey && e.key === '3') || // Cmd+Shift+3 (Mac screenshot)
+        (e.metaKey && e.shiftKey && e.key === '4')    // Cmd+Shift+4 (Mac screenshot)
+      ) {
+        setScreenshotWarning(true);
+        setTimeout(() => setScreenshotWarning(false), 5000);
       }
     };
 
-    joinRoom();
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-    // Cleanup on unmount
+  // Auto-scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Socket connection and event handling
+  useEffect(() => {
+    if (!userSession) return;
+
+    const socket = socketService.connect();
+    setIsConnecting(true);
+
+    // Join room
+    socket.emit('join-room', {
+      roomId,
+      nickname: userSession.nickname,
+      password: userSession.password,
+      sessionId: userSession.sessionId
+    });
+
+    // Listen for events
+    socket.on('connect', () => {
+      setIsConnecting(false);
+    });
+
+    socket.on('new-message', (message) => {
+      setMessages(prev => [...prev, message]);
+    });
+
+    socket.on('user-joined', (data) => {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'System',
+        text: `${data.user.nickname} joined the room`,
+        timestamp: new Date(),
+        isSystem: true
+      }]);
+    });
+
+    socket.on('user-left', (data) => {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'System',
+        text: `${data.user.nickname} left the room`,
+        timestamp: new Date(),
+        isSystem: true
+      }]);
+    });
+
+    socket.on('panic-mode', (data) => {
+      setMessages([]);
+      alert('Panic mode activated! All messages cleared.');
+    });
+
+    socket.on('session-updated', (data) => {
+      const updatedSession = { ...userSession, sessionId: data.sessionId };
+      setUserSession(updatedSession);
+      localStorage.setItem('userSession', JSON.stringify(updatedSession));
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      alert(error.message || 'Connection error');
+    });
+
     return () => {
-      socketService.disconnect();
+      socket.disconnect();
     };
   }, [roomId, userSession, navigate]);
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    
-    if (!newMessage.trim() || !isConnected) return;
+  const handleSendMessage = () => {
+    if (!newMessage.trim() || isConnecting) return;
 
-    try {
-      socketService.sendMessage(newMessage);
-      setNewMessage('');
-    } catch (error) {
-      setError('Failed to send message');
-    }
+    const message = {
+      text: newMessage,
+      timestamp: new Date(),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+    };
+
+    socketService.sendMessage(message);
+    setNewMessage('');
   };
 
-  const handleToggleInvisible = () => {
+  const toggleInvisible = () => {
     setIsInvisible(!isInvisible);
     socketService.toggleInvisible(!isInvisible);
   };
 
-  const handlePanicMode = () => {
-    if (window.confirm('Are you sure you want to activate panic mode? This will clear all messages and redirect you.')) {
+  const triggerPanicMode = () => {
+    if (window.confirm('Are you sure you want to activate panic mode? This will clear all messages!')) {
       socketService.triggerPanicMode();
       navigate('/panic');
     }
@@ -134,7 +163,7 @@ const ChatRoom = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!currentUser) {
+  if (!userSession) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -145,119 +174,173 @@ const ChatRoom = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      {/* Screenshot Warning */}
+      {screenshotWarning && (
+        <motion.div
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -50 }}
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg"
+        >
+          ⚠️ Screenshot detected! Your privacy may be compromised.
+        </motion.div>
+      )}
+
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => navigate('/')}
-              className="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="font-semibold text-gray-800 dark:text-white">Room: {roomId}</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Logged in as: {currentUser.nickname}</p>
-            </div>
-          </div>
+      <div className={`flex items-center justify-between p-4 border-b ${
+        isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white/80 border-gray-200'
+      }`}>
+        <div className="flex items-center space-x-4">
+          <h1 className={`text-xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-800'
+          }`}>
+            Room: {roomId}
+          </h1>
+          <span className={`text-sm ${
+            isDarkMode ? 'text-gray-300' : 'text-gray-600'
+          }`}>
+            {users.length} users online
+          </span>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {/* Invisible Toggle */}
+          <button
+            onClick={toggleInvisible}
+            className={`px-4 py-2 rounded-lg transition-all duration-200 ${
+              isInvisible
+                ? 'bg-red-500/20 border border-red-400/50 text-red-300'
+                : isDarkMode 
+                  ? 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                  : 'bg-white/80 border border-gray-200 text-gray-800 hover:bg-white/90'
+            }`}
+          >
+            {isInvisible ? '🕶️ Invisible' : '👁️ Visible'}
+          </button>
           
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleToggleInvisible}
-              className={`px-3 py-1 rounded text-sm ${
-                isInvisible 
-                  ? 'bg-gray-600 text-white' 
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {isInvisible ? 'Visible' : 'Invisible'}
-            </button>
-            
-            <button
-              onClick={handlePanicMode}
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-            >
-              Panic
-            </button>
-          </div>
+          {/* Panic Mode Button */}
+          <button
+            onClick={triggerPanicMode}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 font-semibold"
+          >
+            🚨 Panic
+          </button>
         </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3">
-          {error}
-        </div>
-      )}
-
-      {/* Chat Messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        {messages.map((message, index) => (
-          <motion.div
-            key={message.id || index}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className={`flex ${
-              message.sender === currentUser.nickname ? 'justify-end' : 'justify-start'
-            }`}
+      {/* Messages Container */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.sender === userSession?.nickname ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`max-w-xs lg:max-w-md p-3 rounded-lg shadow-md ${
-                message.isSystem
-                  ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200'
-                  : message.sender === currentUser.nickname
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white'
-              } ${isInvisible && message.sender !== currentUser.nickname ? 'blur-sm' : ''}`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs opacity-75">
-                  {message.sender}
+            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+              message.isSystem
+                ? 'bg-yellow-500/20 border border-yellow-400/50 text-yellow-300'
+                : message.sender === userSession?.nickname
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
+                : isDarkMode 
+                  ? 'bg-white/10 border border-white/20 text-white'
+                  : 'bg-white/80 border border-gray-200 text-gray-800'
+            } ${isInvisible && message.sender !== userSession?.nickname ? 'blur-sm' : ''}`}>
+              <div className="flex items-center space-x-2 mb-1">
+                {!message.isSystem && (
+                  <img 
+                    src={generateAvatar(message.sender)} 
+                    alt={`${message.sender}'s avatar`}
+                    className="w-6 h-6 rounded-full"
+                  />
+                )}
+                <span className="text-xs opacity-75">{message.sender}</span>
+                <span className="text-xs opacity-50">
+                  {new Date(message.timestamp).toLocaleTimeString()}
                 </span>
                 {message.expiresAt && (
-                  <span className="text-xs opacity-75">
-                    {formatTimeLeft(message.expiresAt)}
+                  <span className="text-xs opacity-50">
+                    ⏰ {Math.max(0, Math.floor((new Date(message.expiresAt) - new Date()) / 1000 / 60))}m
                   </span>
                 )}
               </div>
-              <p className="text-sm">{message.text || message.encryptedContent}</p>
+              <p className="text-sm">{message.text}</p>
             </div>
-          </motion.div>
+          </div>
         ))}
+        
+        {isConnecting && (
+          <div className="text-center text-gray-500">
+            Connecting to server...
+          </div>
+        )}
+        
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
-        <form onSubmit={handleSendMessage} className="flex space-x-3">
+      <div className={`p-4 border-t ${
+        isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white/80 border-gray-200'
+      }`}>
+        <div className="flex items-center space-x-3">
+          {/* Emoji Picker Button */}
+          <button
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className={`p-2 rounded-lg transition-colors ${
+              isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            😊
+          </button>
+          
+          {/* Message Input */}
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
             placeholder="Type your message..."
-            className="flex-1 input-field dark:bg-gray-700 dark:text-white dark:border-gray-600"
-            disabled={isInvisible || !isConnected}
+            className={`flex-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
+              isDarkMode 
+                ? 'bg-white/10 border-white/20 text-white placeholder-gray-400' 
+                : 'bg-white/80 border-gray-200 text-gray-800 placeholder-gray-500'
+            }`}
+            disabled={isConnecting}
           />
+          
+          {/* Send Button */}
           <button
-            type="submit"
-            disabled={!newMessage.trim() || isInvisible || !isConnected}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+            onClick={handleSendMessage}
+            disabled={!newMessage.trim() || isConnecting}
+            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50 text-white rounded-lg transition-all duration-200 font-semibold"
           >
             Send
           </button>
-        </form>
-        {isInvisible && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-            You are invisible. Messages from others are blurred.
-          </p>
-        )}
-        {!isConnected && (
-          <p className="text-xs text-red-500 mt-2 text-center">
-            Connecting to server...
-          </p>
+        </div>
+        
+        {/* Emoji Picker */}
+        {showEmojiPicker && (
+          <div className={`mt-3 p-4 rounded-lg border ${
+            isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white/90 border-gray-200'
+          }`}>
+            <div className="grid grid-cols-8 gap-2">
+              {['😊', '😂', '❤️', '👍', '🎉', '🔥', '💯', '😎', '🤔', '😭', '😡', '🤯', '🥳', '😴', '🤫', '😱'].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    setNewMessage(prev => prev + emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="text-2xl hover:scale-110 transition-transform"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

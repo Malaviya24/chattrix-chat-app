@@ -38,33 +38,25 @@ class ApiService {
   }
 
   // Create room with CSRF protection
-  async createRoom(nickname, password) {
-    try {
-      const csrfToken = await this.getCSRFToken();
-      
-      const headers = {
+  async createRoom(nickname, password, maxUsers = 10) {
+    const csrfToken = await this.getCSRFToken();
+    
+    const response = await fetch(`${API_BASE_URL}/api/rooms`, {
+      method: 'POST',
+      headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
         'X-CSRF-Token': csrfToken
-      };
+      },
+      credentials: 'include',
+      body: JSON.stringify({ nickname, password, maxUsers })
+    });
 
-      const response = await fetch(`${API_BASE_URL}/api/rooms`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ nickname, password })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create room: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Create room error:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create room');
     }
+
+    return response.json();
   }
 
   // Join room with CSRF protection

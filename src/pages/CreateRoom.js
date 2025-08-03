@@ -16,6 +16,7 @@ const CreateRoom = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [maxUsers, setMaxUsers] = useState(10);
 
   const validatePassword = (password) => {
     if (password.length < 8) {
@@ -80,7 +81,7 @@ const CreateRoom = () => {
     }
 
     try {
-      const response = await apiService.createRoom(nickname, password);
+      const response = await apiService.createRoom(nickname, password, maxUsers);
       
       const newRoomId = response.roomId;
       const newRoomLink = `${window.location.origin}/join?roomId=${newRoomId}`;
@@ -253,6 +254,30 @@ const CreateRoom = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-3 ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Room Capacity
+                </label>
+                <input
+                  type="number"
+                  value={maxUsers}
+                  onChange={(e) => setMaxUsers(Math.min(Math.max(parseInt(e.target.value) || 1, 1), 50))}
+                  min="1"
+                  max="50"
+                  className={`w-full px-4 py-3 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm ${
+                    isDarkMode 
+                      ? 'bg-white/10 border-white/20 text-white' 
+                      : 'bg-white/80 border-gray-200 text-gray-800'
+                  }`}
+                  placeholder="Maximum users (1-50)"
+                  required
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-gray-400 mt-1">Maximum number of users allowed in this room</p>
               </div>
 
               {error && (
