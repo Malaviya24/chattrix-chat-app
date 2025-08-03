@@ -69,20 +69,22 @@ class SocketService {
     });
   }
 
-  // Send message
-  sendMessage(text) {
-    if (!this.socket || !this.encryptionKey) {
-      throw new Error('Not connected or no encryption key');
+  sendMessage(message) {
+    if (this.socket) {
+      this.socket.emit('send-message', message);
     }
+  }
 
-    // For now, we'll send the text as-is
-    // In production, you'd encrypt this with the encryptionKey
-    this.socket.emit('send-message', {
-      text,
-      encryptedContent: text, // Placeholder for encrypted content
-      iv: 'placeholder', // Placeholder for IV
-      tag: 'placeholder' // Placeholder for auth tag
-    });
+  startTyping() {
+    if (this.socket) {
+      this.socket.emit('start-typing');
+    }
+  }
+
+  stopTyping() {
+    if (this.socket) {
+      this.socket.emit('stop-typing');
+    }
   }
 
   // Mark message as read

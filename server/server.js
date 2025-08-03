@@ -127,7 +127,7 @@ app.post('/api/rooms',
         encryptionKey,
         maxUsers: Math.min(Math.max(maxUsers, 1), 50), // Ensure between 1-50
         isActive: true,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
       });
       
       await room.save();
@@ -139,7 +139,7 @@ app.post('/api/rooms',
         roomId,
         nickname,
         isActive: true,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
       });
       
       await user.save();
@@ -194,7 +194,7 @@ app.post('/api/rooms/:roomId/join',
         roomId,
         nickname,
         isActive: true,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
       });
       
       await user.save();
@@ -280,7 +280,7 @@ io.on('connection', (socket) => {
           roomId,
           nickname,
           isActive: true,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
         });
         await user.save();
         
@@ -326,7 +326,7 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Server error' });
     }
   });
-  
+
   // Send message
   socket.on('send-message', async (data) => {
     try {
@@ -356,8 +356,8 @@ io.on('connection', (socket) => {
         roomId,
         messageId: encryption.generateRoomId(),
         sender: nickname,
-        encryptedContent,
-        iv,
+        encryptedContent: text, // Store text directly for now
+        iv: 'placeholder',
         expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
       });
       
@@ -367,8 +367,7 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('new-message', {
         id: message.messageId,
         sender: nickname,
-        encryptedContent,
-        iv,
+        text: text,
         timestamp: message.createdAt,
         expiresAt: message.expiresAt
       });
@@ -377,6 +376,19 @@ io.on('connection', (socket) => {
       console.error('Send message error:', error);
       socket.emit('error', { message: 'Failed to send message' });
     }
+  });
+
+  // Typing indicators
+  socket.on('start-typing', () => {
+    socket.to(socket.roomId).emit('user-typing', {
+      nickname: socket.nickname
+    });
+  });
+
+  socket.on('stop-typing', () => {
+    socket.to(socket.roomId).emit('user-stop-typing', {
+      nickname: socket.nickname
+    });
   });
   
   // Mark message as read

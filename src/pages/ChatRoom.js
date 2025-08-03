@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '../utils/ThemeContext';
 import { generateAvatar } from '../utils/avatar';
+import { Picker } from 'emoji-mart';
+import 'emoji-mart/css/emoji-mart.css';
 import socketService from '../services/socket';
 
 const ChatRoom = () => {
@@ -17,6 +19,8 @@ const ChatRoom = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [screenshotWarning, setScreenshotWarning] = useState(false);
   const [userSession, setUserSession] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
   const messagesEndRef = useRef(null);
 
   // Load user session from localStorage
@@ -32,13 +36,12 @@ const ChatRoom = () => {
   // Screenshot detection
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Detect common screenshot shortcuts
       if (
-        (e.ctrlKey && e.key === 'p') || // Ctrl+P (Print)
-        (e.ctrlKey && e.shiftKey && e.key === 'I') || // Ctrl+Shift+I (DevTools)
-        (e.ctrlKey && e.shiftKey && e.key === 'C') || // Ctrl+Shift+C (DevTools)
-        (e.metaKey && e.shiftKey && e.key === '3') || // Cmd+Shift+3 (Mac screenshot)
-        (e.metaKey && e.shiftKey && e.key === '4')    // Cmd+Shift+4 (Mac screenshot)
+        (e.ctrlKey && e.key === 'p') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
+        (e.metaKey && e.shiftKey && e.key === '3') ||
+        (e.metaKey && e.shiftKey && e.key === '4')
       ) {
         setScreenshotWarning(true);
         setTimeout(() => setScreenshotWarning(false), 5000);
@@ -102,6 +105,18 @@ const ChatRoom = () => {
       }]);
     });
 
+    socket.on('user-typing', (data) => {
+      if (data.nickname !== userSession.nickname) {
+        setTypingUsers(prev => [...prev.filter(u => u !== data.nickname), data.nickname]);
+      }
+    });
+
+    socket.on('user-stop-typing', (data) => {
+      if (data.nickname !== userSession.nickname) {
+        setTypingUsers(prev => prev.filter(u => u !== data.nickname));
+      }
+    });
+
     socket.on('panic-mode', (data) => {
       setMessages([]);
       alert('Panic mode activated! All messages cleared.');
@@ -134,6 +149,24 @@ const ChatRoom = () => {
 
     socketService.sendMessage(message);
     setNewMessage('');
+    setIsTyping(false);
+    socketService.stopTyping();
+  };
+
+  const handleTyping = (e) => {
+    setNewMessage(e.target.value);
+    
+    if (!isTyping) {
+      setIsTyping(true);
+      socketService.startTyping();
+    }
+    
+    // Stop typing after 2 seconds of no input
+    clearTimeout(window.typingTimeout);
+    window.typingTimeout = setTimeout(() => {
+      setIsTyping(false);
+      socketService.stopTyping();
+    }, 2000);
   };
 
   const toggleInvisible = () => {
@@ -146,21 +179,6 @@ const ChatRoom = () => {
       socketService.triggerPanicMode();
       navigate('/panic');
     }
-  };
-
-  const formatTimeLeft = (expiresAt) => {
-    if (!expiresAt) return '';
-    
-    const now = new Date();
-    const expiry = new Date(expiresAt);
-    const diff = expiry - now;
-    
-    if (diff <= 0) return 'Expired';
-    
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   if (!userSession) {
@@ -272,6 +290,19 @@ const ChatRoom = () => {
           </div>
         ))}
         
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <div className="flex justify-start">
+            <div className={`max-w-xs px-4 py-2 rounded-lg ${
+              isDarkMode ? 'bg-white/10 border border-white/20' : 'bg-white/80 border border-gray-200'
+            }`}>
+              <p className="text-xs opacity-75">
+                {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+              </p>
+            </div>
+          </div>
+        )}
+        
         {isConnecting && (
           <div className="text-center text-gray-500">
             Connecting to server...
@@ -300,7 +331,7 @@ const ChatRoom = () => {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleTyping}
             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
             placeholder="Type your message..."
             className={`flex-1 px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
@@ -326,20 +357,18 @@ const ChatRoom = () => {
           <div className={`mt-3 p-4 rounded-lg border ${
             isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white/90 border-gray-200'
           }`}>
-            <div className="grid grid-cols-8 gap-2">
-              {['😊', '😂', '❤️', '👍', '🎉', '🔥', '💯', '😎', '🤔', '😭', '😡', '🤯', '🥳', '😴', '🤫', '😱'].map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => {
-                    setNewMessage(prev => prev + emoji);
-                    setShowEmojiPicker(false);
-                  }}
-                  className="text-2xl hover:scale-110 transition-transform"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            <Picker
+              onSelect={(emoji) => {
+                setNewMessage(prev => prev + emoji.native);
+                setShowEmojiPicker(false);
+              }}
+              set="apple"
+              showPreview={false}
+              showSkinTones={false}
+              emojiSize={20}
+              perLine={10}
+              style={{ width: '100%', height: 'auto' }}
+            />
           </div>
         )}
       </div>

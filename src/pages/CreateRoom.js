@@ -315,6 +315,7 @@ const CreateRoom = () => {
                 </div>
                 <h2 className="text-2xl font-semibold text-white mb-2">Room Created Successfully!</h2>
                 <p className="text-gray-300">Share this link with others to join your room</p>
+                <p className="text-yellow-400 text-sm mt-2">⚠️ Link expires in 15 minutes for security</p>
               </div>
 
               <div className={`backdrop-blur-sm rounded-xl p-4 border ${
