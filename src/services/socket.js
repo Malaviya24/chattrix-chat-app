@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 
 // Updated to use deployed backend URL
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://chattrix-backend.onrender.com';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://chattrix-chat-app.onrender.com';
 
 class SocketService {
   constructor() {
@@ -21,7 +21,6 @@ class SocketService {
     console.log('Creating new socket connection to:', SOCKET_URL);
     
     this.socket = io(SOCKET_URL, {
-      withCredentials: true,
       transports: ['websocket', 'polling'],
       timeout: 20000, // Increased to 20 seconds
       forceNew: false, // Reuse connections

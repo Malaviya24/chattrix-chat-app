@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://chattrix-backend.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://chattrix-chat-app.onrender.com';
 
 class ApiService {
   constructor() {
@@ -16,7 +16,6 @@ class ApiService {
 
       const response = await fetch(`${API_BASE_URL}/api/csrf-token`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Accept': 'application/json'
         }
@@ -40,15 +39,11 @@ class ApiService {
 
   // Create room with CSRF protection
   async createRoom(nickname, password, maxUsers = 10) {
-    const csrfToken = await this.getCSRFToken();
-    
     const response = await fetch(`${API_BASE_URL}/api/rooms`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': csrfToken
+        'Content-Type': 'application/json'
       },
-      credentials: 'include',
       body: JSON.stringify({ nickname, password, maxUsers })
     });
 
@@ -63,18 +58,14 @@ class ApiService {
   // Join room with CSRF protection
   async joinRoom(roomId, nickname, password) {
     try {
-      const csrfToken = await this.getCSRFToken();
-      
       const headers = {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-Token': csrfToken
+        'Accept': 'application/json'
       };
 
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
         headers,
-        credentials: 'include',
         body: JSON.stringify({ nickname, password })
       });
 
@@ -95,7 +86,6 @@ class ApiService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Accept': 'application/json'
         }
