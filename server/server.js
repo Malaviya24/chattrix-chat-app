@@ -40,7 +40,9 @@ const io = socketIo(server, {
   cors: {
     origin: [
       "http://localhost:3000", 
-      "https://chattrix-chat-app.netlify.app"
+      "https://chattrix-chat-app.netlify.app",
+      "https://chattrix-chat-app.onrender.com",
+      "http://localhost:5000"
     ],
     methods: ["GET", "POST"],
     credentials: true
@@ -48,12 +50,35 @@ const io = socketIo(server, {
 });
 
 // MongoDB connection
+let mongoConnected = false;
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chattrix', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('✅ Connected to MongoDB'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+.then(() => {
+  console.log('✅ Connected to MongoDB');
+  mongoConnected = true;
+})
+.catch(err => {
+  console.error('❌ MongoDB connection error:', err);
+  console.log('⚠️  Running without database - some features may not work');
+  console.log('💡 To fix this:');
+  console.log('   1. Install MongoDB locally, or');
+  console.log('   2. Use MongoDB Atlas (cloud), or');
+  console.log('   3. Update MONGODB_URI in your environment variables');
+});
+
+// Add a simple in-memory store for development when MongoDB is not available
+const inMemoryStore = {
+  rooms: new Map(),
+  users: new Map(),
+  messages: new Map()
+};
+
+// Helper function to check if we can use database
+const canUseDatabase = () => {
+  return mongoConnected && mongoose.connection.readyState === 1;
+};
 
 // Middleware
 app.use(helmetConfig);
@@ -62,7 +87,9 @@ app.use(morgan('combined'));
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://chattrix-chat-app.netlify.app"
+    "https://chattrix-chat-app.netlify.app",
+    "https://chattrix-chat-app.onrender.com",
+    "http://localhost:5000"
   ],
   credentials: true
 }));
@@ -79,7 +106,7 @@ app.use(session({
     ttl: 24 * 60 * 60 // 24 hours
   }),
   cookie: {
-    secure: false, // Set to false for now to fix CORS issues
+    secure: process.env.NODE_ENV === 'production', // Only secure in production
     httpOnly: true,
     sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
@@ -119,39 +146,72 @@ app.post('/api/rooms',
       const encryptionKey = encryption.generateKey();
       const hashedPassword = await encryption.hashPassword(password);
       
-      // Create room
-      const room = new Room({
-        roomId,
-        password: hashedPassword,
-        creator: nickname,
-        nickname,
-        encryptionKey,
-        maxUsers: Math.min(Math.max(maxUsers, 1), 50), // Ensure between 1-50
-        isActive: true,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
-      });
-      
-      await room.save();
-      
-      // Create user session for the creator
-      const sessionId = encryption.generateRoomId();
-      const user = new User({
-        sessionId,
-        roomId,
-        nickname,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
-      });
-      
-      await user.save();
-      
-      res.json({
-        roomId,
-        sessionId,
-        encryptionKey,
-        message: 'Room created successfully',
-        expiresAt: room.expiresAt
-      });
+      if (canUseDatabase()) {
+        // Create room in database
+        const room = new Room({
+          roomId,
+          password: hashedPassword,
+          creator: nickname,
+          nickname,
+          encryptionKey,
+          maxUsers: Math.min(Math.max(maxUsers, 1), 50), // Ensure between 1-50
+          isActive: true,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+        });
+        
+        await room.save();
+        
+        // Create user session for the creator
+        const sessionId = encryption.generateRoomId();
+        const user = new User({
+          sessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+        });
+        
+        await user.save();
+        
+        res.json({
+          roomId,
+          sessionId,
+          encryptionKey,
+          message: 'Room created successfully',
+          expiresAt: room.expiresAt
+        });
+      } else {
+        // Use in-memory store
+        const sessionId = encryption.generateRoomId();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        
+        inMemoryStore.rooms.set(roomId, {
+          roomId,
+          password: hashedPassword,
+          creator: nickname,
+          nickname,
+          encryptionKey,
+          maxUsers: Math.min(Math.max(maxUsers, 1), 50),
+          isActive: true,
+          expiresAt
+        });
+        
+        inMemoryStore.users.set(sessionId, {
+          sessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt
+        });
+        
+        res.json({
+          roomId,
+          sessionId,
+          encryptionKey,
+          message: 'Room created successfully (in-memory mode)',
+          expiresAt
+        });
+      }
     } catch (error) {
       console.error('Room creation error:', error);
       res.status(500).json({ error: 'Failed to create room' });
@@ -170,41 +230,79 @@ app.post('/api/rooms/:roomId/join',
       const { roomId } = req.params;
       const { nickname, password } = req.body;
       
-      // Find room
-      const room = await Room.findOne({ roomId, isActive: true });
-      if (!room) {
-        return res.status(404).json({ error: 'Room not found' });
+      if (canUseDatabase()) {
+        // Find room in database
+        const room = await Room.findOne({ roomId, isActive: true });
+        if (!room) {
+          return res.status(404).json({ error: 'Room not found' });
+        }
+        
+        // Verify password
+        const isValidPassword = await encryption.comparePassword(password, room.password);
+        if (!isValidPassword) {
+          return res.status(401).json({ error: 'Incorrect password' });
+        }
+        
+        // Check room capacity
+        const userCount = await User.countDocuments({ roomId, isActive: true });
+        if (userCount >= room.maxUsers) {
+          return res.status(403).json({ error: 'Room is full' });
+        }
+        
+        // Create user session
+        const sessionId = encryption.generateRoomId();
+        const user = new User({
+          sessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+        });
+        
+        await user.save();
+        
+        res.json({
+          sessionId,
+          encryptionKey: room.encryptionKey,
+          message: 'Joined room successfully'
+        });
+      } else {
+        // Use in-memory store
+        const room = inMemoryStore.rooms.get(roomId);
+        if (!room || !room.isActive) {
+          return res.status(404).json({ error: 'Room not found' });
+        }
+        
+        // Verify password
+        const isValidPassword = await encryption.comparePassword(password, room.password);
+        if (!isValidPassword) {
+          return res.status(401).json({ error: 'Incorrect password' });
+        }
+        
+        // Check room capacity (simplified for in-memory)
+        const userCount = Array.from(inMemoryStore.users.values())
+          .filter(user => user.roomId === roomId && user.isActive).length;
+        
+        if (userCount >= room.maxUsers) {
+          return res.status(403).json({ error: 'Room is full' });
+        }
+        
+        // Create user session
+        const sessionId = encryption.generateRoomId();
+        inMemoryStore.users.set(sessionId, {
+          sessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+        });
+        
+        res.json({
+          sessionId,
+          encryptionKey: room.encryptionKey,
+          message: 'Joined room successfully (in-memory mode)'
+        });
       }
-      
-      // Verify password
-      const isValidPassword = await encryption.comparePassword(password, room.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: 'Incorrect password' });
-      }
-      
-      // Check room capacity
-      const userCount = await User.countDocuments({ roomId, isActive: true });
-      if (userCount >= room.maxUsers) {
-        return res.status(403).json({ error: 'Room is full' });
-      }
-      
-      // Create user session
-      const sessionId = encryption.generateRoomId();
-      const user = new User({
-        sessionId,
-        roomId,
-        nickname,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
-      });
-      
-      await user.save();
-      
-      res.json({
-        sessionId,
-        encryptionKey: room.encryptionKey,
-        message: 'Joined room successfully'
-      });
     } catch (error) {
       console.error('Join room error:', error);
       res.status(500).json({ error: 'Failed to join room' });

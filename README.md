@@ -104,27 +104,48 @@ npx netlify-cli deploy --prod --dir=build
 
 ## 🛠️ Local Development
 
-### Prerequisites
+### ⚡ Quick Start (No Database Required)
+
+1. **Install Dependencies:**
+   ```bash
+   # Frontend
+   npm install
+   
+   # Backend
+   cd server
+   npm install
+   cd ..
+   ```
+
+2. **Start the Application:**
+   ```bash
+   # Option 1: Manual (two terminals)
+   # Terminal 1 - Backend:
+   cd server && npm start
+   
+   # Terminal 2 - Frontend:
+   npm start
+   
+   # Option 2: Windows (one click)
+   start-dev.bat
+   
+   # Option 3: Linux/Mac
+   chmod +x start-dev.sh && ./start-dev.sh
+   ```
+
+3. **Access the App:**
+   - **Frontend:** http://localhost:3000
+   - **Backend:** http://localhost:5000
+
+### 🔧 Advanced Setup (With Database)
+
+**Prerequisites:**
 - Node.js 18+
-- MongoDB (local or Atlas)
+- MongoDB (local or Atlas) - *Optional*
 - npm or yarn
 
-### Frontend Setup
-```bash
-cd chat-room-app
-npm install
-npm start
-```
-
-### Backend Setup
-```bash
-cd chat-room-app/server
-npm install
-npm start
-```
-
-### Environment Variables
-Create `.env` file in server directory:
+**Environment Variables:**
+Create `server/.env`:
 ```env
 NODE_ENV=development
 PORT=5000
@@ -132,6 +153,20 @@ MONGODB_URI=mongodb://localhost:27017/chattrix
 SESSION_SECRET=your-secret-key
 CORS_ORIGIN=http://localhost:3000
 ```
+
+Create `.env` (frontend):
+```env
+REACT_APP_API_URL=http://localhost:5000
+REACT_APP_SOCKET_URL=http://localhost:5000
+NODE_ENV=development
+```
+
+**Database Options:**
+1. **No Database** - App works in memory mode
+2. **Local MongoDB** - Install MongoDB locally
+3. **MongoDB Atlas** - Free cloud database
+
+See `QUICK_START.md` for detailed setup instructions.
 
 ## 📱 Usage
 
