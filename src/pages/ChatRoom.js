@@ -11,7 +11,6 @@ const ChatRoom = () => {
   const { isDarkMode } = useTheme();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [users, setUsers] = useState([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const [isInvisible, setIsInvisible] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -91,16 +90,7 @@ const ChatRoom = () => {
       };
       
       console.log('Joining room with data:', joinData);
-      
-      // Wait for socket to be connected before joining room
-      if (socket.connected) {
-        socket.emit('join-room', joinData);
-      } else {
-        socket.on('connect', () => {
-          console.log('Socket connected, now joining room...');
-          socket.emit('join-room', joinData);
-        });
-      }
+      socket.emit('join-room', joinData);
 
       // Listen for events
       socket.on('connect', () => {
@@ -191,7 +181,7 @@ const ChatRoom = () => {
           setError('Connection timeout. Please refresh the page and try again.');
           setIsConnecting(false);
         }
-      }, 5000); // 5 seconds timeout (reduced from 10 seconds)
+      }, 10000); // Back to 10 seconds timeout
 
       return () => {
         console.log('Cleaning up socket connection');
@@ -337,7 +327,7 @@ const ChatRoom = () => {
           <span className={`text-sm ${
             isDarkMode ? 'text-gray-300' : 'text-gray-600'
           }`}>
-            {users.length} users online
+            {messages.length} messages
           </span>
         </div>
         
@@ -494,4 +484,4 @@ const ChatRoom = () => {
   );
 };
 
-export default ChatRoom; 
+export default ChatRoom;
