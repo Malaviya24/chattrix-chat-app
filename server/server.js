@@ -201,11 +201,7 @@ app.post('/api/rooms/:roomId/join',
       await user.save();
       
       res.json({
-        user: {
-          sessionId,
-          nickname,
-          roomId
-        },
+        sessionId,
         encryptionKey: room.encryptionKey,
         message: 'Joined room successfully'
       });
