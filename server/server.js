@@ -47,27 +47,75 @@ const io = socketIo(server, {
     ],
     methods: ["GET", "POST"],
     credentials: true
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 30000,
+  maxHttpBufferSize: 1e8, // 100 MB
+  allowUpgrades: true,
+  cookie: {
+    name: 'chattrix.sid',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production'
   }
 });
 
-// MongoDB connection
+// MongoDB connection with retry mechanism
 let mongoConnected = false;
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chattrix', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB');
-  mongoConnected = true;
-})
-.catch(err => {
-  console.error('❌ MongoDB connection error:', err);
-  console.log('⚠️  Running without database - some features may not work');
-  console.log('💡 To fix this:');
-  console.log('   1. Install MongoDB locally, or');
-  console.log('   2. Use MongoDB Atlas (cloud), or');
-  console.log('   3. Update MONGODB_URI in your environment variables');
+let retryCount = 0;
+const maxRetries = 5;
+const retryInterval = 5000; // 5 seconds
+
+const connectWithRetry = () => {
+  console.log(`MongoDB connection attempt ${retryCount + 1} of ${maxRetries}...`);
+  
+  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/chattrix', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 10000, // 10 seconds
+    socketTimeoutMS: 45000, // 45 seconds
+    connectTimeoutMS: 30000, // 30 seconds
+  })
+  .then(() => {
+    console.log('✅ Connected to MongoDB');
+    mongoConnected = true;
+    retryCount = 0; // Reset retry count on successful connection
+  })
+  .catch(err => {
+    console.error(`❌ MongoDB connection error (attempt ${retryCount + 1}):`, err);
+    retryCount++;
+    
+    if (retryCount < maxRetries) {
+      console.log(`⏱️ Retrying in ${retryInterval/1000} seconds...`);
+      setTimeout(connectWithRetry, retryInterval);
+    } else {
+      console.error(`❌ Failed to connect to MongoDB after ${maxRetries} attempts`);
+      console.log('⚠️  Running without database - some features may not work');
+      console.log('💡 To fix this:');
+      console.log('   1. Check if MongoDB is running');
+      console.log('   2. Verify MONGODB_URI in your environment variables');
+      console.log('   3. Check network connectivity to MongoDB server');
+    }
+  });
+};
+
+// Set up MongoDB connection event handlers
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB disconnected');
+  mongoConnected = false;
+  if (retryCount < maxRetries) {
+    setTimeout(connectWithRetry, retryInterval);
+  }
 });
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err);
+  mongoConnected = false;
+});
+
+// Initial connection attempt
+connectWithRetry();
 
 // Add a simple in-memory store for development when MongoDB is not available
 const inMemoryStore = {
@@ -354,16 +402,48 @@ app.get('/api/rooms/:roomId', async (req, res) => {
   }
 });
 
-// Socket.IO connection handling
+// Socket.IO connection handling with improved error handling
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
   
+  // Set up error handling for this socket
+  socket.on('error', (error) => {
+    console.error('Socket error for', socket.id, ':', error);
+    // Attempt to notify client of the error
+    try {
+      socket.emit('error', { message: 'A server error occurred. Please try reconnecting.' });
+    } catch (e) {
+      console.error('Failed to send error to client:', e);
+    }
+  });
+  
+  // Handle unexpected disconnections
+  socket.conn.on('packet', (packet) => {
+    if (packet.type === 'error') {
+      console.error('Transport error for socket:', socket.id);
+    }
+  });
+  
+  // Set a timeout to clean up socket if join-room is not called
+  const joinTimeout = setTimeout(() => {
+    if (!socket.roomId) {
+      console.log('⏱️ Socket connection timeout (no room join):', socket.id);
+      socket.disconnect(true);
+    }
+  }, 60000); // 60 seconds timeout
+  
   // Join room
   socket.on('join-room', async (data) => {
+    // Clear the join timeout since the client is attempting to join
+    clearTimeout(joinTimeout);
+    
     try {
       const { roomId, nickname, password, sessionId } = data;
       
       console.log('Join room attempt:', { roomId, nickname, sessionId });
+      
+      // Add request timestamp for debugging
+      const requestTime = new Date().toISOString();
       
       if (!roomId || !nickname || !password) {
         console.error('Missing required fields:', { roomId, nickname, hasPassword: !!password });
@@ -390,8 +470,9 @@ io.on('connection', (socket) => {
       
       // Verify password
       const isValidPassword = await encryption.comparePassword(password, room.password);
-      console.log('Password verification:', { isValid: isValidPassword });
+      console.log('Password verification:', { isValid: isValidPassword, passwordLength: password.length, hashLength: room.password.length });
       if (!isValidPassword) {
+        console.error('Password verification failed for room:', roomId);
         socket.emit('join-error', { message: 'Incorrect password' });
         return;
       }
@@ -687,25 +768,42 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Disconnect
-  socket.on('disconnect', async () => {
-    console.log('🔌 User disconnected:', socket.id);
+  // Disconnect with improved error handling
+  socket.on('disconnect', async (reason) => {
+    console.log(`🔌 User disconnected (${reason}):`, socket.id);
     
     if (socket.sessionId) {
       try {
-        await User.findOneAndUpdate(
-          { sessionId: socket.sessionId },
-          { isActive: false }
-        );
+        // Update user status in database or memory store
+        if (canUseDatabase()) {
+          await User.findOneAndUpdate(
+            { sessionId: socket.sessionId },
+            { isActive: false }
+          );
+        } else {
+          // Update in-memory store
+          const user = inMemoryStore.users.get(socket.sessionId);
+          if (user) {
+            user.isActive = false;
+            inMemoryStore.users.set(socket.sessionId, user);
+          }
+        }
         
-        socket.to(socket.roomId).emit('user-left', {
-          user: { nickname: socket.nickname },
-          message: `${socket.nickname} left the room`
-        });
+        // Only notify room if we have room info
+        if (socket.roomId && socket.nickname) {
+          socket.to(socket.roomId).emit('user-left', {
+            user: { nickname: socket.nickname },
+            message: `${socket.nickname} left the room`,
+            reason: reason
+          });
+        }
       } catch (error) {
         console.error('Disconnect error:', error);
       }
     }
+    
+    // Clean up any remaining timeouts
+    clearTimeout(joinTimeout);
   });
 });
 
@@ -782,4 +880,4 @@ server.listen(PORT, () => {
   console.log(`🛡️ Security features: CSRF, Rate limiting, Input sanitization`);
   console.log(`🗄️ MongoDB with TTL indexes for auto-cleanup`);
   console.log(`🌐 CORS enabled for frontend`);
-}); 
+});
