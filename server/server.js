@@ -429,20 +429,30 @@ io.on('connection', (socket) => {
       
       let room;
       if (canUseDatabase()) {
-        // Find room in database
+        // Find room in database - try both with and without isActive filter
         room = await Room.findOne({ roomId, isActive: true });
+        if (!room) {
+          // Try without isActive filter in case it's not set
+          room = await Room.findOne({ roomId });
+          if (room) {
+            // Update the room to be active
+            room.isActive = true;
+            await room.save();
+            console.log('Updated room to active:', roomId);
+          }
+        }
       } else {
         // Use in-memory store
         room = inMemoryStore.rooms.get(roomId);
       }
       
-      if (!room || !room.isActive) {
+      if (!room) {
         console.error('Room not found:', roomId);
         socket.emit('join-error', { message: 'Room not found or expired' });
         return;
       }
       
-      console.log('Room found:', { roomId: room.roomId, creator: room.creator });
+      console.log('Room found:', { roomId: room.roomId, creator: room.creator, isActive: room.isActive });
       
       // Verify password
       const isValidPassword = await encryption.comparePassword(password, room.password);
