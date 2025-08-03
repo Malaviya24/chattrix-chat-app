@@ -124,13 +124,20 @@ const JoinRoom = () => {
             <div className="space-y-3 mt-8">
               <motion.button
                 type="button"
-                onClick={() => navigate(`/room/${roomInfo.roomId}`)}
+                onClick={() => {
+                  console.log('User clicked Enter Chat Room');
+                  navigate(`/room/${roomInfo.roomId}`);
+                }}
                 className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 🎯 Enter Chat Room
               </motion.button>
+              
+              <p className="text-xs text-gray-400 text-center">
+                Click "Enter Chat Room" to start chatting with others in the room
+              </p>
               
               <motion.button
                 type="button"

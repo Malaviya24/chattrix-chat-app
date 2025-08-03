@@ -73,6 +73,9 @@ const ChatRoom = () => {
 
     try {
       console.log('Setting up socket connection...');
+      console.log('User session:', userSession);
+      console.log('Room ID:', roomId);
+      
       const socket = socketService.connect();
       setIsConnecting(true);
       setError(null);
@@ -91,6 +94,19 @@ const ChatRoom = () => {
       // Listen for events
       socket.on('connect', () => {
         console.log('Connected to socket server');
+        setIsConnecting(false);
+        setError(null);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setError('Failed to connect to chat server. Please check your connection and try again.');
+        setIsConnecting(false);
+      });
+
+      socket.on('error', (error) => {
+        console.error('Socket error:', error);
+        setError(error.message || 'Connection error occurred');
         setIsConnecting(false);
       });
 
@@ -145,19 +161,6 @@ const ChatRoom = () => {
         localStorage.setItem('userSession', JSON.stringify(updatedSession));
       });
 
-      socket.on('error', (error) => {
-        console.error('Socket error:', error);
-        setError(error.message || 'Connection error');
-        setIsConnecting(false);
-      });
-
-      // Add connection error handler
-      socket.on('connect_error', (error) => {
-        console.error('Connection error:', error);
-        setError('Failed to connect to chat server. Please check your connection.');
-        setIsConnecting(false);
-      });
-
       return () => {
         console.log('Cleaning up socket connection');
         if (socket) {
@@ -166,7 +169,7 @@ const ChatRoom = () => {
       };
     } catch (err) {
       console.error('Error setting up socket:', err);
-      setError('Failed to connect to chat server');
+      setError('Failed to connect to chat server. Please refresh the page and try again.');
       setIsConnecting(false);
     }
   }, [roomId, userSession]);
