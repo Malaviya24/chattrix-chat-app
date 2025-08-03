@@ -96,6 +96,9 @@ const CreateRoom = () => {
         nickname: nickname,
         password: password // Store password temporarily for immediate join
       }));
+
+      // Redirect to chat room after successful creation
+      navigate(`/room/${newRoomId}`);
     } catch (error) {
       setError(error.message || 'Failed to create room');
     } finally {

@@ -262,18 +262,29 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Verify user session
-      const user = await User.findOne({ sessionId, roomId, isActive: true });
+      // Check if user session exists, if not create one (for room creator)
+      let user = await User.findOne({ sessionId, roomId, isActive: true });
       if (!user) {
-        socket.emit('error', { message: 'Invalid session' });
-        return;
+        // Create user session for room creator or new user
+        const newSessionId = encryption.generateRoomId();
+        user = new User({
+          sessionId: newSessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        });
+        await user.save();
+        
+        // Update the sessionId for the client
+        socket.emit('session-updated', { sessionId: newSessionId });
       }
       
       // Join socket room
       socket.join(roomId);
       socket.roomId = roomId;
       socket.nickname = nickname;
-      socket.sessionId = sessionId;
+      socket.sessionId = user.sessionId;
       
       // Update user activity
       await User.findByIdAndUpdate(user._id, { 

@@ -34,6 +34,14 @@ class SocketService {
     this.socket.on('error', (error) => {
       console.error('Socket error:', error);
     });
+
+    this.socket.on('session-updated', (data) => {
+      console.log('Session updated:', data);
+      // Update localStorage with new sessionId
+      const userSession = JSON.parse(localStorage.getItem('userSession') || '{}');
+      userSession.sessionId = data.sessionId;
+      localStorage.setItem('userSession', JSON.stringify(userSession));
+    });
   }
 
   // Join room
