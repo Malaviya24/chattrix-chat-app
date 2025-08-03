@@ -237,6 +237,13 @@ app.post('/api/rooms/:roomId/join',
           return res.status(404).json({ error: 'Room not found' });
         }
         
+        // Check if room has expired
+        if (room.expiresAt && new Date() > room.expiresAt) {
+          // Mark room as inactive and return error
+          await Room.findOneAndUpdate({ roomId }, { isActive: false });
+          return res.status(410).json({ error: 'Room link has expired. Please create a new room.' });
+        }
+        
         // Verify password
         const isValidPassword = await encryption.comparePassword(password, room.password);
         if (!isValidPassword) {
@@ -271,6 +278,13 @@ app.post('/api/rooms/:roomId/join',
         const room = inMemoryStore.rooms.get(roomId);
         if (!room || !room.isActive) {
           return res.status(404).json({ error: 'Room not found' });
+        }
+        
+        // Check if room has expired
+        if (room.expiresAt && new Date() > room.expiresAt) {
+          // Mark room as inactive and return error
+          room.isActive = false;
+          return res.status(410).json({ error: 'Room link has expired. Please create a new room.' });
         }
         
         // Verify password
@@ -693,39 +707,61 @@ io.on('connection', (socket) => {
 // Clean up expired data every 5 minutes
 setInterval(async () => {
   try {
-    const now = new Date();
-    
     if (canUseDatabase()) {
       // Clean up expired messages
-      await Message.deleteMany({ expiresAt: { $lt: now } });
+      const deletedMessages = await Message.deleteMany({
+        expiresAt: { $lt: new Date() }
+      });
       
-      // Clean up inactive users
-      await User.deleteMany({ expiresAt: { $lt: now } });
+      // Clean up expired users
+      const deletedUsers = await User.deleteMany({
+        expiresAt: { $lt: new Date() }
+      });
       
       // Clean up expired rooms
-      await Room.deleteMany({ expiresAt: { $lt: now } });
+      const deletedRooms = await Room.updateMany(
+        { expiresAt: { $lt: new Date() }, isActive: true },
+        { isActive: false }
+      );
+      
+      if (deletedMessages.deletedCount > 0 || deletedUsers.deletedCount > 0 || deletedRooms.modifiedCount > 0) {
+        console.log(`🧹 Cleaned up ${deletedMessages.deletedCount} expired messages, ${deletedUsers.deletedCount} expired users, and ${deletedRooms.modifiedCount} expired rooms`);
+      }
     } else {
-      // Clean up in-memory data
-      for (const [key, message] of inMemoryStore.messages) {
-        if (message.expiresAt < now) {
-          inMemoryStore.messages.delete(key);
+      // Clean up in-memory store
+      const now = new Date();
+      
+      // Clean up expired messages
+      let expiredMessages = 0;
+      for (const [id, message] of inMemoryStore.messages) {
+        if (message.expiresAt && message.expiresAt < now) {
+          inMemoryStore.messages.delete(id);
+          expiredMessages++;
         }
       }
       
-      for (const [key, user] of inMemoryStore.users) {
-        if (user.expiresAt < now) {
-          inMemoryStore.users.delete(key);
+      // Clean up expired users
+      let expiredUsers = 0;
+      for (const [id, user] of inMemoryStore.users) {
+        if (user.expiresAt && user.expiresAt < now) {
+          inMemoryStore.users.delete(id);
+          expiredUsers++;
         }
       }
       
-      for (const [key, room] of inMemoryStore.rooms) {
-        if (room.expiresAt < now) {
-          inMemoryStore.rooms.delete(key);
+      // Clean up expired rooms
+      let expiredRooms = 0;
+      for (const [id, room] of inMemoryStore.rooms) {
+        if (room.expiresAt && room.expiresAt < now && room.isActive) {
+          room.isActive = false;
+          expiredRooms++;
         }
+      }
+      
+      if (expiredMessages > 0 || expiredUsers > 0 || expiredRooms > 0) {
+        console.log(`🧹 Cleaned up ${expiredMessages} expired messages, ${expiredUsers} expired users, and ${expiredRooms} expired rooms (in-memory)`);
       }
     }
-    
-    console.log('🧹 Cleaned up expired data');
   } catch (error) {
     console.error('Cleanup error:', error);
   }

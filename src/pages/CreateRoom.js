@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,6 +17,32 @@ const CreateRoom = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [maxUsers, setMaxUsers] = useState(10);
+  const [expirationTime, setExpirationTime] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+  // Countdown timer for room expiration
+  useEffect(() => {
+    if (!expirationTime) return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const timeLeft = expirationTime - now;
+      
+      if (timeLeft <= 0) {
+        setTimeRemaining('Expired');
+        return;
+      }
+      
+      const minutes = Math.floor(timeLeft / 60000);
+      const seconds = Math.floor((timeLeft % 60000) / 1000);
+      setTimeRemaining(`${minutes}m ${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    
+    return () => clearInterval(interval);
+  }, [expirationTime]);
 
   const validatePassword = (password) => {
     if (password.length < 8) {
@@ -91,6 +117,13 @@ const CreateRoom = () => {
       
       setRoomId(newRoomId);
       setRoomLink(newRoomLink);
+      
+      // Set expiration time (15 minutes from now)
+      if (response.expiresAt) {
+        setExpirationTime(new Date(response.expiresAt));
+      } else {
+        setExpirationTime(new Date(Date.now() + 15 * 60 * 1000));
+      }
       
       // Store user session data for immediate join
       localStorage.setItem('userSession', JSON.stringify({
@@ -320,7 +353,15 @@ const CreateRoom = () => {
                 </div>
                 <h2 className="text-2xl font-semibold text-white mb-2">Room Created Successfully!</h2>
                 <p className="text-gray-300">Share this link with others to join your room</p>
-                <p className="text-yellow-400 text-sm mt-2">⚠️ Link expires in 15 minutes for security</p>
+                <p className="text-yellow-400 text-sm mt-2">
+                  ⚠️ Link expires in: {timeRemaining ? (
+                    <span className={`font-mono font-bold ${timeRemaining === 'Expired' ? 'text-red-400' : 'text-yellow-300'}`}>
+                      {timeRemaining === 'Expired' ? '🔴 EXPIRED' : `⏰ ${timeRemaining}`}
+                    </span>
+                  ) : (
+                    <span className="font-mono font-bold text-yellow-300">⏰ 15m 0s</span>
+                  )}
+                </p>
                 <p className="text-cyan-400 text-sm mt-1">✅ Your session is ready - click "Join Room Now" to start chatting</p>
               </div>
 

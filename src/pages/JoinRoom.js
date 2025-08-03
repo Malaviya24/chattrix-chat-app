@@ -56,7 +56,20 @@ const JoinRoom = () => {
       });
       
     } catch (error) {
-      setError(error.message || 'Failed to join room');
+      console.error('Join room error:', error);
+      
+      // Handle specific error types
+      if (error.message && error.message.includes('expired')) {
+        setError('⏰ This room link has expired. Room links are only valid for 15 minutes after creation. Please ask for a new room link.');
+      } else if (error.message && error.message.includes('full')) {
+        setError('🚫 This room is full. Please try joining later or ask the room creator to increase the user limit.');
+      } else if (error.message && error.message.includes('not found')) {
+        setError('❌ Room not found. Please check the room ID or ask for a new room link.');
+      } else if (error.message && error.message.includes('password')) {
+        setError('🔐 Incorrect password. Please check your password and try again.');
+      } else {
+        setError(error.message || '❌ Failed to join room. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

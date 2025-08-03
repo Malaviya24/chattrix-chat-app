@@ -81,22 +81,23 @@ const ChatRoom = () => {
       setIsConnecting(true);
       setError(null);
 
-      // Join room with proper data
-      const joinData = {
-        roomId,
-        nickname: userSession.nickname,
-        password: userSession.password,
-        sessionId: userSession.sessionId
-      };
-      
-      console.log('Joining room with data:', joinData);
-      socket.emit('join-room', joinData);
+      // Use socketService.joinRoom instead of direct socket.emit
+      socketService.joinRoom(roomId, userSession.nickname, userSession.password, userSession.sessionId)
+        .then((data) => {
+          console.log('Successfully joined room:', data);
+          setIsConnecting(false);
+          setError(null);
+        })
+        .catch((error) => {
+          console.error('Failed to join room:', error);
+          setError(error.message || 'Failed to join room. Please check your credentials.');
+          setIsConnecting(false);
+        });
 
       // Listen for events
       socket.on('connect', () => {
         console.log('Connected to socket server');
-        setIsConnecting(false);
-        setError(null);
+        // Don't set isConnecting to false here, wait for room-info
       });
 
       socket.on('connect_error', (error) => {
