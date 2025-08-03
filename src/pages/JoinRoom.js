@@ -38,12 +38,7 @@ const JoinRoom = () => {
     try {
       const response = await apiService.joinRoom(roomId, nickname, password);
       
-      setRoomInfo({
-        roomId,
-        roomLink: `${window.location.origin}/join?roomId=${roomId}`,
-        nickname
-      });
-
+      // Store user session
       localStorage.setItem('userSession', JSON.stringify({
         sessionId: response.sessionId,
         encryptionKey: response.encryptionKey,
@@ -52,8 +47,11 @@ const JoinRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
-      // Show success page instead of automatic redirect
-      setJoinSuccess(true);
+      console.log('User joined successfully, redirecting to chat room...');
+      
+      // Redirect directly to chat room (bypass success page)
+      navigate(`/room/${roomId}`);
+      
     } catch (error) {
       setError(error.message || 'Failed to join room');
     } finally {

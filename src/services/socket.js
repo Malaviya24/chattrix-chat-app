@@ -12,13 +12,18 @@ class SocketService {
 
   // Initialize socket connection
   connect() {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
+      console.log('Socket already connected, returning existing connection');
       return this.socket;
     }
 
+    console.log('Creating new socket connection to:', SOCKET_URL);
+    
     this.socket = io(SOCKET_URL, {
       withCredentials: true,
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      forceNew: true
     });
 
     this.socket.on('connect', () => {
@@ -26,13 +31,18 @@ class SocketService {
       this.isConnected = true;
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from Socket.IO server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from Socket.IO server:', reason);
+      this.isConnected = false;
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('🔌 Socket connection error:', error);
       this.isConnected = false;
     });
 
     this.socket.on('error', (error) => {
-      console.error('Socket error:', error);
+      console.error('🔌 Socket error:', error);
     });
 
     this.socket.on('session-updated', (data) => {

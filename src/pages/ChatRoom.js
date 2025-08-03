@@ -71,12 +71,14 @@ const ChatRoom = () => {
   useEffect(() => {
     if (!userSession || !roomId) return;
 
+    let socket = null;
+    
     try {
       console.log('Setting up socket connection...');
       console.log('User session:', userSession);
       console.log('Room ID:', roomId);
       
-      const socket = socketService.connect();
+      socket = socketService.connect();
       setIsConnecting(true);
       setError(null);
 
@@ -107,6 +109,12 @@ const ChatRoom = () => {
       socket.on('error', (error) => {
         console.error('Socket error:', error);
         setError(error.message || 'Connection error occurred');
+        setIsConnecting(false);
+      });
+
+      socket.on('join-error', (error) => {
+        console.error('Join room error:', error);
+        setError(error.message || 'Failed to join room. Please check your credentials.');
         setIsConnecting(false);
       });
 
@@ -161,8 +169,18 @@ const ChatRoom = () => {
         localStorage.setItem('userSession', JSON.stringify(updatedSession));
       });
 
+      // Set a timeout for connection
+      const connectionTimeout = setTimeout(() => {
+        if (isConnecting) {
+          console.error('Connection timeout');
+          setError('Connection timeout. Please refresh the page and try again.');
+          setIsConnecting(false);
+        }
+      }, 10000); // 10 seconds timeout
+
       return () => {
         console.log('Cleaning up socket connection');
+        clearTimeout(connectionTimeout);
         if (socket) {
           socket.disconnect();
         }
