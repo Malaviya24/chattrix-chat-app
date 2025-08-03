@@ -46,7 +46,7 @@ const createRateLimiter = (windowMs, max, message) => {
 // Different rate limits for different endpoints
 const authLimiter = createRateLimiter(
   15 * 60 * 1000, // 15 minutes
-  5, // 5 attempts
+  20, // 20 attempts (increased from 5)
   'Too many authentication attempts. Please try again later.'
 );
 
@@ -58,7 +58,7 @@ const messageLimiter = createRateLimiter(
 
 const roomCreationLimiter = createRateLimiter(
   60 * 60 * 1000, // 1 hour
-  10, // 10 rooms per hour
+  50, // 50 rooms per hour (increased from 10)
   'Too many room creations. Please try again later.'
 );
 
