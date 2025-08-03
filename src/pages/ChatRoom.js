@@ -107,8 +107,11 @@ const ChatRoom = () => {
 
       socket.on('error', (error) => {
         console.error('Socket error:', error);
-        setError(error.message || 'Connection error occurred');
-        setIsConnecting(false);
+        // Don't show connection errors for message sending errors
+        if (!error.message || !error.message.includes('Not in a room')) {
+          setError(error.message || 'Connection error occurred');
+          setIsConnecting(false);
+        }
       });
 
       socket.on('join-error', (error) => {

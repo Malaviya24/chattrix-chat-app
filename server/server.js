@@ -328,23 +328,55 @@ io.on('connection', (socket) => {
       const roomId = socket.roomId;
       const nickname = socket.nickname;
       
+      console.log('Send message attempt:', { roomId, nickname, sessionId: socket.sessionId });
+      
       if (!roomId || !nickname) {
-        console.error('Send message error: User not in room', { roomId, nickname });
-        socket.emit('error', { message: 'Not in a room. Please refresh and try again.' });
+        console.error('Send message error: Missing roomId or nickname', { roomId, nickname });
+        socket.emit('error', { message: 'Connection issue. Please refresh the page.' });
         return;
       }
       
-      // Verify user is still in the room
-      const user = await User.findOne({ 
-        sessionId: socket.sessionId, 
-        roomId, 
-        isActive: true 
-      });
+      // Verify user is still in the room (more lenient check)
+      let user = null;
+      if (socket.sessionId) {
+        user = await User.findOne({ 
+          sessionId: socket.sessionId, 
+          roomId, 
+          isActive: true 
+        });
+      }
       
+      // If no user found with sessionId, try to find by nickname and roomId
       if (!user) {
-        console.error('Send message error: User session not found');
-        socket.emit('error', { message: 'Session expired. Please refresh and try again.' });
-        return;
+        user = await User.findOne({ 
+          nickname, 
+          roomId, 
+          isActive: true 
+        });
+        
+        if (user) {
+          // Update socket sessionId
+          socket.sessionId = user.sessionId;
+          console.log('Updated socket sessionId:', user.sessionId);
+        }
+      }
+      
+      // If still no user, create a new session (for backward compatibility)
+      if (!user) {
+        console.log('Creating new user session for message sender');
+        const newSessionId = encryption.generateRoomId();
+        user = new User({
+          sessionId: newSessionId,
+          roomId,
+          nickname,
+          isActive: true,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+        });
+        await user.save();
+        socket.sessionId = newSessionId;
+        
+        // Update client session
+        socket.emit('session-updated', { sessionId: newSessionId });
       }
       
       // Rate limiting check
@@ -384,7 +416,7 @@ io.on('connection', (socket) => {
       
     } catch (error) {
       console.error('Send message error:', error);
-      socket.emit('error', { message: 'Failed to send message' });
+      socket.emit('error', { message: 'Failed to send message. Please try again.' });
     }
   });
 
