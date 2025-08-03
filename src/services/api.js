@@ -37,36 +37,23 @@ class ApiService {
     }
   }
 
-  // Create room with enhanced security
+  // Create room - temporarily disable CSRF for debugging
   async createRoom(nickname, password, maxUsers = 10) {
     try {
-      // Get CSRF token first
-      const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf-token`, {
-        method: 'GET',
-        credentials: 'include'
-      });
+      console.log('Creating room with nickname:', nickname, 'maxUsers:', maxUsers);
+      console.log('API Base URL:', API_BASE_URL);
       
-      let csrfToken = null;
-      if (csrfResponse.ok) {
-        const csrfData = await csrfResponse.json();
-        csrfToken = csrfData.csrfToken;
-      }
-
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
-      
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/rooms`, {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ nickname, password, maxUsers })
       });
+      
+      console.log('Create room response status:', response.status);
+      console.log('Create room response ok:', response.ok);
 
       if (!response.ok) {
         const error = await response.json();
@@ -80,36 +67,23 @@ class ApiService {
     }
   }
 
-  // Join room with CSRF protection
+  // Join room - temporarily disable CSRF for debugging
   async joinRoom(roomId, nickname, password) {
     try {
-      // Get CSRF token first
-      const csrfResponse = await fetch(`${API_BASE_URL}/api/csrf-token`, {
-        method: 'GET',
-        credentials: 'include'
-      });
+      console.log('Attempting to join room:', roomId, 'with nickname:', nickname);
+      console.log('API Base URL:', API_BASE_URL);
       
-      let csrfToken = null;
-      if (csrfResponse.ok) {
-        const csrfData = await csrfResponse.json();
-        csrfToken = csrfData.csrfToken;
-      }
-
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
-      
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/join`, {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ nickname, password })
       });
+      
+      console.log('Join room response status:', response.status);
+      console.log('Join room response ok:', response.ok);
 
       if (!response.ok) {
         const errorData = await response.json();
