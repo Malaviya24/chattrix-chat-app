@@ -7,6 +7,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+const bcrypt = require('bcryptjs'); // Added bcrypt for password comparison
 require('dotenv').config();
 
 // Import models
@@ -244,80 +245,96 @@ app.get('/api/rooms/:roomId', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
   
-  // Join room via Socket.IO
+  // Join room
   socket.on('join-room', async (data) => {
     try {
       const { roomId, nickname, password, sessionId } = data;
       
-      // Verify room exists
+      console.log('Join room attempt:', { roomId, nickname, sessionId });
+      
+      if (!roomId || !nickname || !password) {
+        socket.emit('join-error', { message: 'Missing required fields' });
+        return;
+      }
+      
+      // Find room
       const room = await Room.findOne({ roomId, isActive: true });
       if (!room) {
-        socket.emit('join-error', { message: 'Room not found' });
+        socket.emit('join-error', { message: 'Room not found or expired' });
         return;
       }
       
       // Verify password
-      const isValidPassword = await encryption.comparePassword(password, room.password);
+      const isValidPassword = await bcrypt.compare(password, room.password);
       if (!isValidPassword) {
         socket.emit('join-error', { message: 'Incorrect password' });
         return;
       }
       
       // Check room capacity
-      const userCount = await User.countDocuments({ roomId, isActive: true });
-      if (userCount >= room.maxUsers) {
+      const currentUsers = await User.countDocuments({ roomId, isActive: true });
+      if (currentUsers >= room.maxUsers) {
         socket.emit('join-error', { message: 'Room is full' });
         return;
       }
       
-      // Check if user session exists, if not create one (for room creator)
-      let user = await User.findOne({ sessionId, roomId, isActive: true });
-      if (!user) {
-        // Create user session for room creator or new user
-        const newSessionId = encryption.generateRoomId();
+      // Check if user already exists in this room
+      let user = await User.findOne({ 
+        nickname, 
+        roomId, 
+        isActive: true 
+      });
+      
+      if (user) {
+        // Update existing user session
+        user.sessionId = sessionId || user.sessionId;
+        user.lastSeen = new Date();
+        await user.save();
+        console.log('Updated existing user session:', user.sessionId);
+      } else {
+        // Create new user session
+        const newSessionId = sessionId || encryption.generateRoomId();
         user = new User({
           sessionId: newSessionId,
           roomId,
           nickname,
           isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes for security
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         });
         await user.save();
-        
-        // Update the sessionId for the client
-        socket.emit('session-updated', { sessionId: newSessionId });
+        console.log('Created new user session:', newSessionId);
       }
       
-      // Join socket room
-      socket.join(roomId);
+      // Store socket data
       socket.roomId = roomId;
       socket.nickname = nickname;
       socket.sessionId = user.sessionId;
       
-      // Update user activity
-      await User.findByIdAndUpdate(user._id, { 
-        lastActivity: new Date(),
-        isActive: true
-      });
+      // Join socket room
+      socket.join(roomId);
       
-      // Emit room info to confirm successful join
+      // Emit session update
+      socket.emit('session-updated', { sessionId: user.sessionId });
+      
+      // Send room info
       socket.emit('room-info', {
         roomId,
         nickname,
-        sessionId: user.sessionId,
-        userCount: userCount + 1
+        maxUsers: room.maxUsers,
+        currentUsers: currentUsers + 1
       });
       
-      // Notify other users
+      // Notify others in room
       socket.to(roomId).emit('user-joined', {
-        user: { nickname, sessionId: user.sessionId }
+        nickname,
+        timestamp: new Date()
       });
       
-      console.log(`✅ User ${nickname} joined room ${roomId}`);
+      console.log(`✅ ${nickname} joined room ${roomId}`);
       
     } catch (error) {
       console.error('Join room error:', error);
-      socket.emit('join-error', { message: 'Failed to join room' });
+      socket.emit('join-error', { message: 'Failed to join room. Please try again.' });
     }
   });
 
@@ -332,51 +349,34 @@ io.on('connection', (socket) => {
       
       if (!roomId || !nickname) {
         console.error('Send message error: Missing roomId or nickname', { roomId, nickname });
-        socket.emit('error', { message: 'Connection issue. Please refresh the page.' });
+        socket.emit('message-error', { message: 'Connection issue. Please refresh the page.' });
         return;
       }
       
-      // Verify user is still in the room (more lenient check)
-      let user = null;
-      if (socket.sessionId) {
-        user = await User.findOne({ 
-          sessionId: socket.sessionId, 
-          roomId, 
-          isActive: true 
-        });
-      }
+      // Verify user is in the room (simplified check)
+      const user = await User.findOne({ 
+        nickname, 
+        roomId, 
+        isActive: true 
+      });
       
-      // If no user found with sessionId, try to find by nickname and roomId
       if (!user) {
-        user = await User.findOne({ 
-          nickname, 
-          roomId, 
-          isActive: true 
-        });
-        
-        if (user) {
-          // Update socket sessionId
-          socket.sessionId = user.sessionId;
-          console.log('Updated socket sessionId:', user.sessionId);
-        }
-      }
-      
-      // If still no user, create a new session (for backward compatibility)
-      if (!user) {
-        console.log('Creating new user session for message sender');
-        const newSessionId = encryption.generateRoomId();
-        user = new User({
+        console.log('User not found in room, creating session...');
+        // Create user session if not exists
+        const newSessionId = socket.sessionId || encryption.generateRoomId();
+        const newUser = new User({
           sessionId: newSessionId,
           roomId,
           nickname,
           isActive: true,
           expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         });
-        await user.save();
+        await newUser.save();
         socket.sessionId = newSessionId;
         
         // Update client session
         socket.emit('session-updated', { sessionId: newSessionId });
+        console.log('Created new user session for message sender:', newSessionId);
       }
       
       // Rate limiting check
@@ -387,7 +387,7 @@ io.on('connection', (socket) => {
       });
       
       if (messageCount >= 30) {
-        socket.emit('error', { message: 'Rate limit exceeded' });
+        socket.emit('message-error', { message: 'Rate limit exceeded' });
         return;
       }
       
@@ -416,7 +416,7 @@ io.on('connection', (socket) => {
       
     } catch (error) {
       console.error('Send message error:', error);
-      socket.emit('error', { message: 'Failed to send message. Please try again.' });
+      socket.emit('message-error', { message: 'Failed to send message. Please try again.' });
     }
   });
 

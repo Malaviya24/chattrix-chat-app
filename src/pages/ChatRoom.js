@@ -114,6 +114,11 @@ const ChatRoom = () => {
         }
       });
 
+      socket.on('message-error', (error) => {
+        console.error('Message error:', error);
+        setError(error.message || 'Failed to send message');
+      });
+
       socket.on('join-error', (error) => {
         console.error('Join room error:', error);
         setError(error.message || 'Failed to join room. Please check your credentials.');

@@ -24,16 +24,14 @@ const JoinRoom = () => {
     }
   }, [searchParams]);
 
-  const handleJoinRoom = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    if (!roomId.trim() || !nickname.trim() || !password.trim()) {
-      setError('Please fill in all fields');
-      setIsLoading(false);
+  const handleJoinRoom = async () => {
+    if (!nickname.trim() || !password.trim()) {
+      setError('Please enter both nickname and password');
       return;
     }
+
+    setIsLoading(true);
+    setError(null);
 
     try {
       const response = await apiService.joinRoom(roomId, nickname, password);
@@ -47,10 +45,15 @@ const JoinRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
-      console.log('User joined successfully, redirecting to chat room...');
+      console.log('User joined successfully, showing success page...');
       
-      // Redirect directly to chat room (bypass success page)
-      navigate(`/room/${roomId}`);
+      // Show success page instead of automatic redirect
+      setJoinSuccess(true);
+      setRoomInfo({
+        roomId: roomId,
+        nickname: nickname,
+        sessionId: response.sessionId
+      });
       
     } catch (error) {
       setError(error.message || 'Failed to join room');
