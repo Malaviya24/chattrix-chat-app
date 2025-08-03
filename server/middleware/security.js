@@ -137,8 +137,8 @@ const validateRoomCreation = [
     .withMessage('Nickname can only contain letters, numbers, underscores, and hyphens'),
   
   body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters long')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
     .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
   
@@ -164,8 +164,8 @@ const validateJoinRoom = [
     .withMessage('Nickname can only contain letters, numbers, underscores, and hyphens'),
   
   body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters long')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
     .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
   
