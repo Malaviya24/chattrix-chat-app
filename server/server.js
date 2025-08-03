@@ -252,21 +252,21 @@ io.on('connection', (socket) => {
       // Verify room exists
       const room = await Room.findOne({ roomId, isActive: true });
       if (!room) {
-        socket.emit('error', { message: 'Room not found' });
+        socket.emit('join-error', { message: 'Room not found' });
         return;
       }
       
       // Verify password
       const isValidPassword = await encryption.comparePassword(password, room.password);
       if (!isValidPassword) {
-        socket.emit('error', { message: 'Incorrect password' });
+        socket.emit('join-error', { message: 'Incorrect password' });
         return;
       }
       
       // Check room capacity
       const userCount = await User.countDocuments({ roomId, isActive: true });
       if (userCount >= room.maxUsers) {
-        socket.emit('error', { message: 'Room is full' });
+        socket.emit('join-error', { message: 'Room is full' });
         return;
       }
       
@@ -300,42 +300,50 @@ io.on('connection', (socket) => {
         isActive: true
       });
       
-      // Notify others
-      socket.to(roomId).emit('user-joined', {
-        user: { nickname },
-        message: `${nickname} joined the room`
-      });
-      
-      // Send room info and recent messages
-      const recentMessages = await Message.find({ 
-        roomId, 
-        isVisible: true 
-      })
-      .sort({ createdAt: -1 })
-      .limit(50);
-      
+      // Emit room info to confirm successful join
       socket.emit('room-info', {
         roomId,
-        users: await User.find({ roomId, isActive: true }).select('nickname'),
-        messages: recentMessages.reverse(),
-        encryptionKey: room.encryptionKey
+        nickname,
+        sessionId: user.sessionId,
+        userCount: userCount + 1
       });
       
+      // Notify other users
+      socket.to(roomId).emit('user-joined', {
+        user: { nickname, sessionId: user.sessionId }
+      });
+      
+      console.log(`✅ User ${nickname} joined room ${roomId}`);
+      
     } catch (error) {
-      console.error('Socket join room error:', error);
-      socket.emit('error', { message: 'Server error' });
+      console.error('Join room error:', error);
+      socket.emit('join-error', { message: 'Failed to join room' });
     }
   });
 
   // Send message
   socket.on('send-message', async (data) => {
     try {
-      const { text, encryptedContent, iv, tag } = data;
+      const { text, timestamp, expiresAt } = data;
       const roomId = socket.roomId;
       const nickname = socket.nickname;
       
       if (!roomId || !nickname) {
-        socket.emit('error', { message: 'Not in a room' });
+        console.error('Send message error: User not in room', { roomId, nickname });
+        socket.emit('error', { message: 'Not in a room. Please refresh and try again.' });
+        return;
+      }
+      
+      // Verify user is still in the room
+      const user = await User.findOne({ 
+        sessionId: socket.sessionId, 
+        roomId, 
+        isActive: true 
+      });
+      
+      if (!user) {
+        console.error('Send message error: User session not found');
+        socket.emit('error', { message: 'Session expired. Please refresh and try again.' });
         return;
       }
       
@@ -358,7 +366,7 @@ io.on('connection', (socket) => {
         sender: nickname,
         encryptedContent: text, // Store text directly for now
         iv: 'placeholder',
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+        expiresAt: expiresAt || new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
       });
       
       await message.save();
@@ -368,9 +376,11 @@ io.on('connection', (socket) => {
         id: message.messageId,
         sender: nickname,
         text: text,
-        timestamp: message.createdAt,
+        timestamp: timestamp || message.createdAt,
         expiresAt: message.expiresAt
       });
+      
+      console.log(`✅ Message sent by ${nickname} in room ${roomId}`);
       
     } catch (error) {
       console.error('Send message error:', error);
