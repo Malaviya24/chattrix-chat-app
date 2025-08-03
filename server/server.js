@@ -352,9 +352,16 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Find room
-      const room = await Room.findOne({ roomId, isActive: true });
-      if (!room) {
+      let room;
+      if (canUseDatabase()) {
+        // Find room in database
+        room = await Room.findOne({ roomId, isActive: true });
+      } else {
+        // Use in-memory store
+        room = inMemoryStore.rooms.get(roomId);
+      }
+      
+      if (!room || !room.isActive) {
         console.error('Room not found:', roomId);
         socket.emit('join-error', { message: 'Room not found or expired' });
         return;
@@ -371,7 +378,14 @@ io.on('connection', (socket) => {
       }
       
       // Check room capacity
-      const currentUsers = await User.countDocuments({ roomId, isActive: true });
+      let currentUsers;
+      if (canUseDatabase()) {
+        currentUsers = await User.countDocuments({ roomId, isActive: true });
+      } else {
+        currentUsers = Array.from(inMemoryStore.users.values())
+          .filter(user => user.roomId === roomId && user.isActive).length;
+      }
+      
       console.log('Room capacity check:', { currentUsers, maxUsers: room.maxUsers });
       if (currentUsers >= room.maxUsers) {
         socket.emit('join-error', { message: 'Room is full' });
@@ -379,29 +393,53 @@ io.on('connection', (socket) => {
       }
       
       // Check if user already exists in this room
-      let user = await User.findOne({ 
-        nickname, 
-        roomId, 
-        isActive: true 
-      });
+      let user;
+      if (canUseDatabase()) {
+        user = await User.findOne({ 
+          nickname, 
+          roomId, 
+          isActive: true 
+        });
+      } else {
+        user = Array.from(inMemoryStore.users.values())
+          .find(u => u.nickname === nickname && u.roomId === roomId && u.isActive);
+      }
       
       if (user) {
         // Update existing user session
-        user.sessionId = sessionId || user.sessionId;
-        user.lastSeen = new Date();
-        await user.save();
-        console.log('Updated existing user session:', user.sessionId);
+        const newSessionId = sessionId || user.sessionId;
+        if (canUseDatabase()) {
+          user.sessionId = newSessionId;
+          user.lastSeen = new Date();
+          await user.save();
+        } else {
+          user.sessionId = newSessionId;
+          user.lastSeen = new Date();
+          inMemoryStore.users.set(newSessionId, user);
+        }
+        console.log('Updated existing user session:', newSessionId);
       } else {
         // Create new user session
         const newSessionId = sessionId || encryption.generateRoomId();
-        user = new User({
-          sessionId: newSessionId,
-          roomId,
-          nickname,
-          isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-        });
-        await user.save();
+        if (canUseDatabase()) {
+          user = new User({
+            sessionId: newSessionId,
+            roomId,
+            nickname,
+            isActive: true,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+          });
+          await user.save();
+        } else {
+          user = {
+            sessionId: newSessionId,
+            roomId,
+            nickname,
+            isActive: true,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+          };
+          inMemoryStore.users.set(newSessionId, user);
+        }
         console.log('Created new user session:', newSessionId);
       }
       
@@ -421,7 +459,8 @@ io.on('connection', (socket) => {
         roomId,
         nickname,
         maxUsers: room.maxUsers,
-        currentUsers: currentUsers + 1
+        currentUsers: currentUsers + 1,
+        encryptionKey: room.encryptionKey
       });
       
       // Notify others in room
@@ -453,25 +492,42 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Verify user is in the room (simplified check)
-      const user = await User.findOne({ 
-        nickname, 
-        roomId, 
-        isActive: true 
-      });
+      // Verify user is in the room
+      let user;
+      if (canUseDatabase()) {
+        user = await User.findOne({ 
+          nickname, 
+          roomId, 
+          isActive: true 
+        });
+      } else {
+        user = Array.from(inMemoryStore.users.values())
+          .find(u => u.nickname === nickname && u.roomId === roomId && u.isActive);
+      }
       
       if (!user) {
         console.log('User not found in room, creating session...');
         // Create user session if not exists
         const newSessionId = socket.sessionId || encryption.generateRoomId();
-        const newUser = new User({
-          sessionId: newSessionId,
-          roomId,
-          nickname,
-          isActive: true,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-        });
-        await newUser.save();
+        if (canUseDatabase()) {
+          const newUser = new User({
+            sessionId: newSessionId,
+            roomId,
+            nickname,
+            isActive: true,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+          });
+          await newUser.save();
+        } else {
+          const newUser = {
+            sessionId: newSessionId,
+            roomId,
+            nickname,
+            isActive: true,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+          };
+          inMemoryStore.users.set(newSessionId, newUser);
+        }
         socket.sessionId = newSessionId;
         
         // Update client session
@@ -479,12 +535,21 @@ io.on('connection', (socket) => {
         console.log('Created new user session for message sender:', newSessionId);
       }
       
-      // Rate limiting check
-      const messageCount = await Message.countDocuments({
-        roomId,
-        sender: nickname,
-        createdAt: { $gte: new Date(Date.now() - 60000) } // Last minute
-      });
+      // Rate limiting check (simplified for in-memory)
+      let messageCount = 0;
+      if (canUseDatabase()) {
+        messageCount = await Message.countDocuments({
+          roomId,
+          sender: nickname,
+          createdAt: { $gte: new Date(Date.now() - 60000) } // Last minute
+        });
+      } else {
+        // Simple in-memory rate limiting
+        const recentMessages = Array.from(inMemoryStore.messages.values())
+          .filter(m => m.roomId === roomId && m.sender === nickname && 
+                 m.createdAt > new Date(Date.now() - 60000));
+        messageCount = recentMessages.length;
+      }
       
       if (messageCount >= 30) {
         socket.emit('message-error', { message: 'Rate limit exceeded' });
@@ -492,24 +557,31 @@ io.on('connection', (socket) => {
       }
       
       // Create message
-      const message = new Message({
+      const messageId = encryption.generateRoomId();
+      const messageData = {
         roomId,
-        messageId: encryption.generateRoomId(),
+        messageId,
         sender: nickname,
-        encryptedContent: text, // Store text directly for now
+        encryptedContent: text,
         iv: 'placeholder',
-        expiresAt: expiresAt || new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-      });
+        expiresAt: expiresAt || new Date(Date.now() + 15 * 60 * 1000),
+        createdAt: new Date()
+      };
       
-      await message.save();
+      if (canUseDatabase()) {
+        const message = new Message(messageData);
+        await message.save();
+      } else {
+        inMemoryStore.messages.set(messageId, messageData);
+      }
       
       // Broadcast to room
       io.to(roomId).emit('new-message', {
-        id: message.messageId,
+        id: messageId,
         sender: nickname,
         text: text,
-        timestamp: timestamp || message.createdAt,
-        expiresAt: message.expiresAt
+        timestamp: timestamp || messageData.createdAt,
+        expiresAt: messageData.expiresAt
       });
       
       console.log(`✅ Message sent by ${nickname} in room ${roomId}`);
@@ -623,14 +695,35 @@ setInterval(async () => {
   try {
     const now = new Date();
     
-    // Clean up expired messages
-    await Message.deleteMany({ expiresAt: { $lt: now } });
-    
-    // Clean up inactive users
-    await User.deleteMany({ expiresAt: { $lt: now } });
-    
-    // Clean up expired rooms
-    await Room.deleteMany({ expiresAt: { $lt: now } });
+    if (canUseDatabase()) {
+      // Clean up expired messages
+      await Message.deleteMany({ expiresAt: { $lt: now } });
+      
+      // Clean up inactive users
+      await User.deleteMany({ expiresAt: { $lt: now } });
+      
+      // Clean up expired rooms
+      await Room.deleteMany({ expiresAt: { $lt: now } });
+    } else {
+      // Clean up in-memory data
+      for (const [key, message] of inMemoryStore.messages) {
+        if (message.expiresAt < now) {
+          inMemoryStore.messages.delete(key);
+        }
+      }
+      
+      for (const [key, user] of inMemoryStore.users) {
+        if (user.expiresAt < now) {
+          inMemoryStore.users.delete(key);
+        }
+      }
+      
+      for (const [key, room] of inMemoryStore.rooms) {
+        if (room.expiresAt < now) {
+          inMemoryStore.rooms.delete(key);
+        }
+      }
+    }
     
     console.log('🧹 Cleaned up expired data');
   } catch (error) {
