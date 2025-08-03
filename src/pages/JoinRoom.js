@@ -106,18 +106,32 @@ const JoinRoom = () => {
               <div className="flex items-center justify-center bg-white/10 p-3 rounded-xl border border-white/20">
                 <span className="text-lg font-medium text-white mr-2">{roomInfo.roomLink}</span>
                 <button
-                  onClick={() => window.open(roomInfo.roomLink, '_blank')}
+                  onClick={() => {
+                    navigator.clipboard.writeText(roomInfo.roomLink);
+                    // You could add a toast notification here
+                  }}
                   className="p-2 text-gray-400 hover:text-white transition-colors"
                   title="Copy Link"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 2a8 8 0 00-8 8c0 2.15.73 4.15 1.9 5.7L3 16h14l-1.1-1.3A7.96 7.96 0 0018 10a8 8 0 00-8-8zm0 14a6 6 0 100-12 6 6 0 000 12zm-2-5a1 1 0 11-2 0 1 1 0 012 0zm4 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
                   </svg>
                 </button>
               </div>
             </div>
 
             <div className="space-y-3 mt-8">
+              <motion.button
+                type="button"
+                onClick={() => navigate(`/room/${roomInfo.roomId}`)}
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                🎯 Enter Chat Room
+              </motion.button>
+              
               <motion.button
                 type="button"
                 onClick={() => navigate('/')}
