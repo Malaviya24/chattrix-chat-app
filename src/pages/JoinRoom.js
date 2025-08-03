@@ -14,8 +14,6 @@ const JoinRoom = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [joinSuccess, setJoinSuccess] = useState(false);
-  const [roomInfo, setRoomInfo] = useState(null);
 
   useEffect(() => {
     const roomIdFromUrl = searchParams.get('roomId');
@@ -45,15 +43,10 @@ const JoinRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
-      console.log('User joined successfully, showing success page...');
+      console.log('User joined successfully, redirecting to chat room...');
       
-      // Show success page instead of automatic redirect
-      setJoinSuccess(true);
-      setRoomInfo({
-        roomId: roomId,
-        nickname: nickname,
-        sessionId: response.sessionId
-      });
+      // Automatically redirect to chat room after successful join
+      navigate(`/room/${roomId}`);
       
     } catch (error) {
       console.error('Join room error:', error);
