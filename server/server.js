@@ -48,17 +48,7 @@ const io = socketIo(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  connectTimeout: 30000,
-  maxHttpBufferSize: 1e8, // 100 MB
-  allowUpgrades: true,
-  cookie: {
-    name: 'chattrix.sid',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
-  }
+  transports: ['websocket', 'polling']
 });
 
 // MongoDB connection with retry mechanism
@@ -424,26 +414,12 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Set a timeout to clean up socket if join-room is not called
-  const joinTimeout = setTimeout(() => {
-    if (!socket.roomId) {
-      console.log('⏱️ Socket connection timeout (no room join):', socket.id);
-      socket.disconnect(true);
-    }
-  }, 60000); // 60 seconds timeout
-  
   // Join room
   socket.on('join-room', async (data) => {
-    // Clear the join timeout since the client is attempting to join
-    clearTimeout(joinTimeout);
-    
     try {
       const { roomId, nickname, password, sessionId } = data;
       
       console.log('Join room attempt:', { roomId, nickname, sessionId });
-      
-      // Add request timestamp for debugging
-      const requestTime = new Date().toISOString();
       
       if (!roomId || !nickname || !password) {
         console.error('Missing required fields:', { roomId, nickname, hasPassword: !!password });
@@ -803,7 +779,6 @@ io.on('connection', (socket) => {
     }
     
     // Clean up any remaining timeouts
-    clearTimeout(joinTimeout);
   });
 });
 
