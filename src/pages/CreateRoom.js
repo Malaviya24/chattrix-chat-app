@@ -97,8 +97,8 @@ const CreateRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
-      // Redirect to chat room after successful creation
-      navigate(`/room/${newRoomId}`);
+      // Show success page with QR code and room details
+      // User can then click "Join Room Now" to go to chat
     } catch (error) {
       setError(error.message || 'Failed to create room');
     } finally {
