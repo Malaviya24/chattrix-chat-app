@@ -181,7 +181,7 @@ const ChatRoom = () => {
           setError('Connection timeout. Please refresh the page and try again.');
           setIsConnecting(false);
         }
-      }, 10000); // Back to 10 seconds timeout
+      }, 15000); // Increased to 15 seconds timeout
 
       return () => {
         console.log('Cleaning up socket connection');
