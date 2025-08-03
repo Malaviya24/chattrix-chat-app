@@ -91,7 +91,16 @@ const ChatRoom = () => {
       };
       
       console.log('Joining room with data:', joinData);
-      socket.emit('join-room', joinData);
+      
+      // Wait for socket to be connected before joining room
+      if (socket.connected) {
+        socket.emit('join-room', joinData);
+      } else {
+        socket.on('connect', () => {
+          console.log('Socket connected, now joining room...');
+          socket.emit('join-room', joinData);
+        });
+      }
 
       // Listen for events
       socket.on('connect', () => {
@@ -116,6 +125,12 @@ const ChatRoom = () => {
         console.error('Join room error:', error);
         setError(error.message || 'Failed to join room. Please check your credentials.');
         setIsConnecting(false);
+      });
+
+      socket.on('room-info', (data) => {
+        console.log('Room info received:', data);
+        setIsConnecting(false);
+        setError(null);
       });
 
       socket.on('new-message', (message) => {
@@ -176,7 +191,7 @@ const ChatRoom = () => {
           setError('Connection timeout. Please refresh the page and try again.');
           setIsConnecting(false);
         }
-      }, 10000); // 10 seconds timeout
+      }, 5000); // 5 seconds timeout (reduced from 10 seconds)
 
       return () => {
         console.log('Cleaning up socket connection');
