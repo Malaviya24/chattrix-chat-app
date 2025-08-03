@@ -81,11 +81,14 @@ const CreateRoom = () => {
     }
 
     try {
+      console.log('Creating room...');
       const response = await apiService.createRoom(nickname, password, maxUsers);
       
       const newRoomId = response.roomId;
       const newRoomLink = `${window.location.origin}/join?roomId=${newRoomId}`;
 
+      console.log('Room created successfully:', { newRoomId, newRoomLink });
+      
       setRoomId(newRoomId);
       setRoomLink(newRoomLink);
       
@@ -98,9 +101,11 @@ const CreateRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
+      console.log('User session stored, showing success page with QR code');
       // Show success page with QR code and room details
       // User can then click "Join Room Now" to go to chat
     } catch (error) {
+      console.error('Error creating room:', error);
       setError(error.message || 'Failed to create room');
     } finally {
       setIsLoading(false);
@@ -316,6 +321,7 @@ const CreateRoom = () => {
                 <h2 className="text-2xl font-semibold text-white mb-2">Room Created Successfully!</h2>
                 <p className="text-gray-300">Share this link with others to join your room</p>
                 <p className="text-yellow-400 text-sm mt-2">⚠️ Link expires in 15 minutes for security</p>
+                <p className="text-cyan-400 text-sm mt-1">✅ Your session is ready - click "Join Room Now" to start chatting</p>
               </div>
 
               <div className={`backdrop-blur-sm rounded-xl p-4 border ${
