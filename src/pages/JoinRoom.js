@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '../utils/ThemeContext';
 import apiService from '../services/api';
+import { validatePassword } from '../utils/passwordUtils';
 
 const JoinRoom = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const JoinRoom = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -23,8 +25,19 @@ const JoinRoom = () => {
   }, [searchParams]);
 
   const handleJoinRoom = async () => {
+    // Reset error states
+    setError('');
+    setPasswordError('');
+    
     if (!nickname.trim() || !password.trim()) {
       setError('Please enter both nickname and password');
+      return;
+    }
+
+    // Validate password
+    const passwordValidation = validatePassword(password);
+    if (passwordValidation) {
+      setPasswordError(passwordValidation);
       return;
     }
 
@@ -107,7 +120,7 @@ const JoinRoom = () => {
             <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>Enter the room details to join the conversation</p>
           </div>
 
-          <form onSubmit={handleJoinRoom} className="space-y-6">
+          <form onSubmit={(e) => { e.preventDefault(); handleJoinRoom(); }} className="space-y-6">
             <div>
               <label className={`block text-sm font-medium mb-3 ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'
@@ -165,7 +178,7 @@ const JoinRoom = () => {
                     isDarkMode 
                       ? 'bg-white/10 border-white/20 text-white' 
                       : 'bg-white/80 border-gray-200 text-gray-800'
-                  }`}
+                  } ${passwordError ? 'border-red-500 ring-red-500' : ''}`}
                   placeholder="Enter room password"
                   required
                   disabled={isLoading}
@@ -189,6 +202,15 @@ const JoinRoom = () => {
                   )}
                 </button>
               </div>
+              {passwordError && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-2 bg-red-500/20 border border-red-400/50 text-red-300 px-4 py-3 rounded-xl text-sm"
+                >
+                  {passwordError}
+                </motion.div>
+              )}
             </div>
 
             {error && (
@@ -233,4 +255,4 @@ const JoinRoom = () => {
   );
 };
 
-export default JoinRoom; 
+export default JoinRoom;

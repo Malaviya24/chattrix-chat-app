@@ -164,8 +164,10 @@ const validateJoinRoom = [
     .withMessage('Nickname can only contain letters, numbers, underscores, and hyphens'),
   
   body('password')
-    .isLength({ min: 1 })
-    .withMessage('Password is required'),
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
   
   (req, res, next) => {
     const errors = validationResult(req);
@@ -223,4 +225,4 @@ module.exports = {
   validateJoinRoom,
   sessionSecurity,
   helmetConfig
-}; 
+};

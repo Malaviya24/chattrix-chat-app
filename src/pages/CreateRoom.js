@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTheme } from '../utils/ThemeContext';
 import apiService from '../services/api';
+import { validatePassword } from '../utils/passwordUtils';
 
 const CreateRoom = () => {
   const navigate = useNavigate();
@@ -44,21 +45,7 @@ const CreateRoom = () => {
     return () => clearInterval(interval);
   }, [expirationTime]);
 
-  const validatePassword = (password) => {
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!/[A-Z]/.test(password)) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    if (!/[a-z]/.test(password)) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    if (!/[0-9]/.test(password)) {
-      return 'Password must contain at least one number';
-    }
-    return null;
-  };
+  // Using the shared password validation utility from passwordUtils
 
   const generatePassword = () => {
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
@@ -435,4 +422,4 @@ const CreateRoom = () => {
   );
 };
 
-export default CreateRoom; 
+export default CreateRoom;
