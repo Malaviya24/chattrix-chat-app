@@ -204,7 +204,7 @@ const ChatRoom = () => {
       setError('Failed to connect to chat server. Please refresh the page and try again.');
       setIsConnecting(false);
     }
-  }, [roomId, userSession]);
+  }, [roomId, userSession, isConnecting]);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || isConnecting) return;
