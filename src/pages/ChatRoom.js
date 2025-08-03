@@ -72,17 +72,21 @@ const ChatRoom = () => {
     if (!userSession || !roomId) return;
 
     try {
+      console.log('Setting up socket connection...');
       const socket = socketService.connect();
       setIsConnecting(true);
       setError(null);
 
-      // Join room
-      socket.emit('join-room', {
+      // Join room with proper data
+      const joinData = {
         roomId,
         nickname: userSession.nickname,
         password: userSession.password,
         sessionId: userSession.sessionId
-      });
+      };
+      
+      console.log('Joining room with data:', joinData);
+      socket.emit('join-room', joinData);
 
       // Listen for events
       socket.on('connect', () => {
@@ -147,9 +151,18 @@ const ChatRoom = () => {
         setIsConnecting(false);
       });
 
+      // Add connection error handler
+      socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        setError('Failed to connect to chat server. Please check your connection.');
+        setIsConnecting(false);
+      });
+
       return () => {
         console.log('Cleaning up socket connection');
-        socket.disconnect();
+        if (socket) {
+          socket.disconnect();
+        }
       };
     } catch (err) {
       console.error('Error setting up socket:', err);
@@ -162,19 +175,38 @@ const ChatRoom = () => {
     if (!newMessage.trim() || isConnecting) return;
 
     try {
+      // Get the current socket instance
+      const socket = socketService.socket;
+      
+      // Check if socket is available and connected
+      if (!socket || !socket.connected) {
+        console.error('Socket not connected, attempting to reconnect...');
+        setError('Connection lost. Please refresh the page.');
+        return;
+      }
+
       const message = {
-        text: newMessage,
+        text: newMessage.trim(),
         timestamp: new Date(),
         expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
       };
 
-      socketService.sendMessage(message);
+      console.log('Sending message:', message);
+      
+      // Use the socket directly instead of socketService.sendMessage
+      socket.emit('send-message', message);
+      
       setNewMessage('');
       setIsTyping(false);
-      socketService.stopTyping();
+      
+      // Stop typing indicator
+      if (socket.connected) {
+        socket.emit('stop-typing');
+      }
+      
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Failed to send message');
+      setError('Failed to send message. Please try again.');
     }
   };
 

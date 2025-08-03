@@ -14,6 +14,8 @@ const JoinRoom = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState(false);
+  const [roomInfo, setRoomInfo] = useState(null);
 
   useEffect(() => {
     const roomIdFromUrl = searchParams.get('roomId');
@@ -36,7 +38,12 @@ const JoinRoom = () => {
     try {
       const response = await apiService.joinRoom(roomId, nickname, password);
       
-      // Store user session data
+      setRoomInfo({
+        roomId,
+        roomLink: `${window.location.origin}/join?roomId=${roomId}`,
+        nickname
+      });
+
       localStorage.setItem('userSession', JSON.stringify({
         sessionId: response.sessionId,
         encryptionKey: response.encryptionKey,
@@ -45,14 +52,91 @@ const JoinRoom = () => {
         password: password // Store password temporarily for immediate join
       }));
 
-      // Navigate to chat room
-      navigate(`/room/${roomId}`);
+      // Show success page instead of automatic redirect
+      setJoinSuccess(true);
     } catch (error) {
       setError(error.message || 'Failed to join room');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (joinSuccess && roomInfo) {
+    return (
+      <div className={`min-h-screen relative overflow-hidden transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
+          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+      }`}>
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className={`absolute top-20 left-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob ${
+            isDarkMode ? 'bg-purple-500' : 'bg-purple-300'
+          }`}></div>
+          <div className={`absolute top-40 right-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000 ${
+            isDarkMode ? 'bg-cyan-500' : 'bg-cyan-300'
+          }`}></div>
+          <div className={`absolute -bottom-8 left-40 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000 ${
+            isDarkMode ? 'bg-blue-500' : 'bg-blue-300'
+          }`}></div>
+        </div>
+
+        <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+          <motion.div
+            className={`max-w-md w-full backdrop-blur-sm rounded-3xl border shadow-2xl p-8 ${
+              isDarkMode 
+                ? 'bg-white/10 border-white/20' 
+                : 'bg-white/90 border-gray-200'
+            }`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
+                Room Joined!
+              </h1>
+              <p className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
+                You have successfully joined the room. Your nickname is: {roomInfo.nickname}
+              </p>
+            </div>
+
+            <div className="text-center">
+              <h2 className="text-xl font-semibold mb-4">Your Room Link:</h2>
+              <div className="flex items-center justify-center bg-white/10 p-3 rounded-xl border border-white/20">
+                <span className="text-lg font-medium text-white mr-2">{roomInfo.roomLink}</span>
+                <button
+                  onClick={() => window.open(roomInfo.roomLink, '_blank')}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                  title="Copy Link"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a8 8 0 00-8 8c0 2.15.73 4.15 1.9 5.7L3 16h14l-1.1-1.3A7.96 7.96 0 0018 10a8 8 0 00-8-8zm0 14a6 6 0 100-12 6 6 0 000 12zm-2-5a1 1 0 11-2 0 1 1 0 012 0zm4 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 mt-8">
+              <motion.button
+                type="button"
+                onClick={() => navigate('/')}
+                className={`w-full border font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 ${
+                  isDarkMode 
+                    ? 'bg-white/10 border-white/20 text-white hover:bg-white/20' 
+                    : 'bg-white/80 border-gray-200 text-gray-800 hover:bg-white/90'
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                ← Back to Home
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen relative overflow-hidden transition-colors duration-300 ${
