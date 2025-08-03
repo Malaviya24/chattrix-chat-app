@@ -253,6 +253,7 @@ io.on('connection', (socket) => {
       console.log('Join room attempt:', { roomId, nickname, sessionId });
       
       if (!roomId || !nickname || !password) {
+        console.error('Missing required fields:', { roomId, nickname, hasPassword: !!password });
         socket.emit('join-error', { message: 'Missing required fields' });
         return;
       }
@@ -260,12 +261,16 @@ io.on('connection', (socket) => {
       // Find room
       const room = await Room.findOne({ roomId, isActive: true });
       if (!room) {
+        console.error('Room not found:', roomId);
         socket.emit('join-error', { message: 'Room not found or expired' });
         return;
       }
       
+      console.log('Room found:', { roomId: room.roomId, creator: room.creator });
+      
       // Verify password
-      const isValidPassword = await bcrypt.compare(password, room.password);
+      const isValidPassword = await encryption.comparePassword(password, room.password);
+      console.log('Password verification:', { isValid: isValidPassword });
       if (!isValidPassword) {
         socket.emit('join-error', { message: 'Incorrect password' });
         return;
@@ -273,6 +278,7 @@ io.on('connection', (socket) => {
       
       // Check room capacity
       const currentUsers = await User.countDocuments({ roomId, isActive: true });
+      console.log('Room capacity check:', { currentUsers, maxUsers: room.maxUsers });
       if (currentUsers >= room.maxUsers) {
         socket.emit('join-error', { message: 'Room is full' });
         return;
