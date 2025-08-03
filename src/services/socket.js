@@ -13,7 +13,7 @@ class SocketService {
   // Initialize socket connection
   connect() {
     if (this.socket) {
-      return;
+      return this.socket;
     }
 
     this.socket = io(SOCKET_URL, {
@@ -42,6 +42,8 @@ class SocketService {
       userSession.sessionId = data.sessionId;
       localStorage.setItem('userSession', JSON.stringify(userSession));
     });
+
+    return this.socket;
   }
 
   // Join room

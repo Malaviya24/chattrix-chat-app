@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '../utils/ThemeContext';
 import { generateAvatar } from '../utils/avatar';
-import { Picker } from 'emoji-mart';
-import 'emoji-mart/css/emoji-mart.css';
 import socketService from '../services/socket';
 
 const ChatRoom = () => {
@@ -21,14 +19,22 @@ const ChatRoom = () => {
   const [userSession, setUserSession] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Load user session from localStorage
   useEffect(() => {
-    const session = localStorage.getItem('userSession');
-    if (session) {
-      setUserSession(JSON.parse(session));
-    } else {
+    try {
+      const session = localStorage.getItem('userSession');
+      if (session) {
+        const parsedSession = JSON.parse(session);
+        setUserSession(parsedSession);
+      } else {
+        console.log('No user session found, redirecting to home');
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Error loading user session:', err);
       navigate('/');
     }
   }, [navigate]);
@@ -63,94 +69,113 @@ const ChatRoom = () => {
 
   // Socket connection and event handling
   useEffect(() => {
-    if (!userSession) return;
+    if (!userSession || !roomId) return;
 
-    const socket = socketService.connect();
-    setIsConnecting(true);
+    try {
+      const socket = socketService.connect();
+      setIsConnecting(true);
+      setError(null);
 
-    // Join room
-    socket.emit('join-room', {
-      roomId,
-      nickname: userSession.nickname,
-      password: userSession.password,
-      sessionId: userSession.sessionId
-    });
+      // Join room
+      socket.emit('join-room', {
+        roomId,
+        nickname: userSession.nickname,
+        password: userSession.password,
+        sessionId: userSession.sessionId
+      });
 
-    // Listen for events
-    socket.on('connect', () => {
+      // Listen for events
+      socket.on('connect', () => {
+        console.log('Connected to socket server');
+        setIsConnecting(false);
+      });
+
+      socket.on('new-message', (message) => {
+        console.log('New message received:', message);
+        setMessages(prev => [...prev, message]);
+      });
+
+      socket.on('user-joined', (data) => {
+        console.log('User joined:', data);
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          sender: 'System',
+          text: `${data.user.nickname} joined the room`,
+          timestamp: new Date(),
+          isSystem: true
+        }]);
+      });
+
+      socket.on('user-left', (data) => {
+        console.log('User left:', data);
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          sender: 'System',
+          text: `${data.user.nickname} left the room`,
+          timestamp: new Date(),
+          isSystem: true
+        }]);
+      });
+
+      socket.on('user-typing', (data) => {
+        if (data.nickname !== userSession.nickname) {
+          setTypingUsers(prev => [...prev.filter(u => u !== data.nickname), data.nickname]);
+        }
+      });
+
+      socket.on('user-stop-typing', (data) => {
+        if (data.nickname !== userSession.nickname) {
+          setTypingUsers(prev => prev.filter(u => u !== data.nickname));
+        }
+      });
+
+      socket.on('panic-mode', (data) => {
+        setMessages([]);
+        alert('Panic mode activated! All messages cleared.');
+      });
+
+      socket.on('session-updated', (data) => {
+        console.log('Session updated:', data);
+        const updatedSession = { ...userSession, sessionId: data.sessionId };
+        setUserSession(updatedSession);
+        localStorage.setItem('userSession', JSON.stringify(updatedSession));
+      });
+
+      socket.on('error', (error) => {
+        console.error('Socket error:', error);
+        setError(error.message || 'Connection error');
+        setIsConnecting(false);
+      });
+
+      return () => {
+        console.log('Cleaning up socket connection');
+        socket.disconnect();
+      };
+    } catch (err) {
+      console.error('Error setting up socket:', err);
+      setError('Failed to connect to chat server');
       setIsConnecting(false);
-    });
-
-    socket.on('new-message', (message) => {
-      setMessages(prev => [...prev, message]);
-    });
-
-    socket.on('user-joined', (data) => {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: 'System',
-        text: `${data.user.nickname} joined the room`,
-        timestamp: new Date(),
-        isSystem: true
-      }]);
-    });
-
-    socket.on('user-left', (data) => {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: 'System',
-        text: `${data.user.nickname} left the room`,
-        timestamp: new Date(),
-        isSystem: true
-      }]);
-    });
-
-    socket.on('user-typing', (data) => {
-      if (data.nickname !== userSession.nickname) {
-        setTypingUsers(prev => [...prev.filter(u => u !== data.nickname), data.nickname]);
-      }
-    });
-
-    socket.on('user-stop-typing', (data) => {
-      if (data.nickname !== userSession.nickname) {
-        setTypingUsers(prev => prev.filter(u => u !== data.nickname));
-      }
-    });
-
-    socket.on('panic-mode', (data) => {
-      setMessages([]);
-      alert('Panic mode activated! All messages cleared.');
-    });
-
-    socket.on('session-updated', (data) => {
-      const updatedSession = { ...userSession, sessionId: data.sessionId };
-      setUserSession(updatedSession);
-      localStorage.setItem('userSession', JSON.stringify(updatedSession));
-    });
-
-    socket.on('error', (error) => {
-      console.error('Socket error:', error);
-      alert(error.message || 'Connection error');
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [roomId, userSession, navigate]);
+    }
+  }, [roomId, userSession]);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || isConnecting) return;
 
-    const message = {
-      text: newMessage,
-      timestamp: new Date(),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-    };
+    try {
+      const message = {
+        text: newMessage,
+        timestamp: new Date(),
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+      };
 
-    socketService.sendMessage(message);
-    setNewMessage('');
-    setIsTyping(false);
-    socketService.stopTyping();
+      socketService.sendMessage(message);
+      setNewMessage('');
+      setIsTyping(false);
+      socketService.stopTyping();
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError('Failed to send message');
+    }
   };
 
   const handleTyping = (e) => {
@@ -181,11 +206,33 @@ const ChatRoom = () => {
     }
   };
 
+  // Show loading state
   if (!userSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900">
         <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300">Loading chat room...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="bg-red-500/20 border border-red-400/50 text-red-300 px-6 py-4 rounded-xl mb-4">
+            <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
+            <p className="text-sm">{error}</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -305,6 +352,7 @@ const ChatRoom = () => {
         
         {isConnecting && (
           <div className="text-center text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500 mx-auto mb-2"></div>
             Connecting to server...
           </div>
         )}
@@ -357,18 +405,20 @@ const ChatRoom = () => {
           <div className={`mt-3 p-4 rounded-lg border ${
             isDarkMode ? 'bg-white/10 border-white/20' : 'bg-white/90 border-gray-200'
           }`}>
-            <Picker
-              onSelect={(emoji) => {
-                setNewMessage(prev => prev + emoji.native);
-                setShowEmojiPicker(false);
-              }}
-              set="apple"
-              showPreview={false}
-              showSkinTones={false}
-              emojiSize={20}
-              perLine={10}
-              style={{ width: '100%', height: 'auto' }}
-            />
+            <div className="grid grid-cols-8 gap-2">
+              {['😊', '😂', '❤️', '👍', '🎉', '🔥', '💯', '😎', '🤔', '😭', '😡', '🤯', '🥳', '😴', '🤫', '😱', '😄', '😅', '😆', '😉', '😋', '😎', '😍', '🤩', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴', '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟', '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '🥵', '🥶', '😳', '🤪', '😵', '😡', '😠', '🤬', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '😇', '🥳', '🥴', '🥺', '🤠', '🤡', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👿', '👹', '👺', '💀', '👻', '👽', '🤖', '💩', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'].map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => {
+                    setNewMessage(prev => prev + emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="text-2xl hover:scale-110 transition-transform p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
