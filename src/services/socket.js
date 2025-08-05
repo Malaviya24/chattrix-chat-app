@@ -1,14 +1,15 @@
 import io from 'socket.io-client';
 
-// Updated to use deployed backend URL
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://chattrix-chat-app.onrender.com';
+// Socket URL configuration with fallback
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://chattrix-chat-app.onrender.com');
+console.log('Using Socket URL:', SOCKET_URL);
 
 class SocketService {
   constructor() {
     this.socket = null;
     this.encryptionKey = null;
     this.isConnected = false;
-    this.listeners = new Map();
   }
 
   // Initialize socket connection
@@ -22,17 +23,18 @@ class SocketService {
     
     this.socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
-      timeout: 20000, // Increased to 20 seconds
-      forceNew: false, // Reuse connections
+      timeout: 20000,
+      forceNew: false,
       reconnection: true,
-      reconnectionAttempts: 10, // Increased attempts
+      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000, // Increased max delay
-      maxReconnectionAttempts: 10
+      reconnectionDelayMax: 5000,
+      withCredentials: true,
+      autoConnect: true
     });
 
     this.socket.on('connect', () => {
-      console.log('🔌 Connected to Socket.IO server');
+      console.log('✅ Connected to Socket.IO server with ID:', this.socket.id);
       this.isConnected = true;
     });
 
@@ -42,7 +44,12 @@ class SocketService {
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('🔌 Socket connection error:', error);
+      console.error('❌ Socket connection error:', error);
+      console.error('Connection details:', {
+        url: SOCKET_URL,
+        error: error.message,
+        type: error.type
+      });
       this.isConnected = false;
     });
 
@@ -52,38 +59,12 @@ class SocketService {
 
     this.socket.on('session-updated', (data) => {
       console.log('Session updated:', data);
-      // Update localStorage with new sessionId
       const userSession = JSON.parse(localStorage.getItem('userSession') || '{}');
       userSession.sessionId = data.sessionId;
       localStorage.setItem('userSession', JSON.stringify(userSession));
     });
 
     return this.socket;
-  }
-
-  // Join room
-  async joinRoom(roomId, nickname, password, sessionId) {
-    if (!this.socket) {
-      this.connect();
-    }
-
-    return new Promise((resolve, reject) => {
-      this.socket.emit('join-room', {
-        roomId,
-        nickname,
-        password,
-        sessionId
-      });
-
-      this.socket.once('room-info', (data) => {
-        this.encryptionKey = data.encryptionKey;
-        resolve(data);
-      });
-
-      this.socket.once('error', (error) => {
-        reject(new Error(error.message));
-      });
-    });
   }
 
   sendMessage(message) {
@@ -131,82 +112,9 @@ class SocketService {
     this.socket.emit('panic-mode');
   }
 
-  // Listen for new messages
-  onNewMessage(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('new-message', callback);
-    this.listeners.set('new-message', callback);
-  }
-
-  // Listen for user joined
-  onUserJoined(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('user-joined', callback);
-    this.listeners.set('user-joined', callback);
-  }
-
-  // Listen for user left
-  onUserLeft(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('user-left', callback);
-    this.listeners.set('user-left', callback);
-  }
-
-  // Listen for user invisible
-  onUserInvisible(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('user-invisible', callback);
-    this.listeners.set('user-invisible', callback);
-  }
-
-  // Listen for panic mode
-  onPanicMode(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('panic-mode', callback);
-    this.listeners.set('panic-mode', callback);
-  }
-
-  // Listen for errors
-  onError(callback) {
-    if (!this.socket) {
-      return;
-    }
-
-    this.socket.on('error', callback);
-    this.listeners.set('error', callback);
-  }
-
-  // Remove all listeners
-  removeAllListeners() {
-    if (!this.socket) {
-      return;
-    }
-
-    this.listeners.forEach((callback, event) => {
-      this.socket.off(event, callback);
-    });
-    this.listeners.clear();
-  }
-
   // Disconnect
   disconnect() {
     if (this.socket) {
-      this.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
@@ -218,7 +126,39 @@ class SocketService {
   getConnectionStatus() {
     return this.isConnected;
   }
+
+  // Enhanced room joining with timeout and better error handling
+  joinRoom(roomId, nickname, password, sessionId) {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      // Set timeout for room join
+      const timeout = setTimeout(() => {
+        reject(new Error('Room join timeout - server may be unavailable'));
+      }, 15000); // 15 seconds timeout
+
+      // Listen for join response
+      this.socket.once('room-info', (data) => {
+        clearTimeout(timeout);
+        console.log('✅ Room joined successfully:', data);
+        resolve(data);
+      });
+
+      this.socket.once('join-error', (error) => {
+        clearTimeout(timeout);
+        console.error('❌ Room join error:', error);
+        reject(new Error(error.message || 'Failed to join room'));
+      });
+
+      // Emit join room event
+      console.log('🔄 Attempting to join room:', { roomId, nickname, sessionId });
+      this.socket.emit('join-room', { roomId, nickname, password, sessionId });
+    });
+  }
 }
 
 const socketService = new SocketService();
-export default socketService; 
+export default socketService;

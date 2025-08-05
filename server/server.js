@@ -123,15 +123,21 @@ const canUseDatabase = () => {
 app.use(helmetConfig);
 app.use(compression());
 app.use(morgan('combined'));
-app.use(cors({
-  origin: [
+// CORS configuration with environment variable support
+const corsOrigins = process.env.CORS_ORIGINS ? 
+  process.env.CORS_ORIGINS.split(',') : [
     "http://localhost:3000",
     "https://chattrix-chat-app.netlify.app",
     "https://chattrix-chat-app.onrender.com",
     "https://chattrix-chat-app.windsurf.build",
     "http://localhost:5000"
-  ],
-  credentials: true
+  ];
+
+app.use(cors({
+  origin: corsOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -162,7 +168,19 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     message: 'Chat server is running',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
+    database: canUseDatabase() ? 'Connected' : 'In-Memory Mode',
+    activeConnections: io.engine.clientsCount
+  });
+});
+
+// Simple test endpoint for debugging
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled',
+    socket: 'ready'
   });
 });
 

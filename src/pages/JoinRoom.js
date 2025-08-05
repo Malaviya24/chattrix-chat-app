@@ -47,13 +47,13 @@ const JoinRoom = () => {
     try {
       const response = await apiService.joinRoom(roomId, nickname, password);
       
-      // Store user session
+      // Store user session (without password)
       localStorage.setItem('userSession', JSON.stringify({
         sessionId: response.sessionId,
         encryptionKey: response.encryptionKey,
         roomId: roomId,
-        nickname: nickname,
-        password: password // Store password temporarily for immediate join
+        nickname: nickname
+        // Removed password storage for security
       }));
 
       console.log('User joined successfully, redirecting to chat room...');

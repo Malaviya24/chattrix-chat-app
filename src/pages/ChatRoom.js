@@ -70,141 +70,156 @@ const ChatRoom = () => {
   useEffect(() => {
     if (!userSession || !roomId) return;
 
-    let socket = null;
+    console.log('Setting up socket connection...');
+    console.log('User session:', userSession);
+    console.log('Room ID:', roomId);
     
-    try {
-      console.log('Setting up socket connection...');
-      console.log('User session:', userSession);
-      console.log('Room ID:', roomId);
-      
-      socket = socketService.connect();
-      setIsConnecting(true);
-      setError(null);
+    const socket = socketService.connect();
+    setIsConnecting(true);
+    setError(null);
 
-      // Use socketService.joinRoom instead of direct socket.emit
-      socketService.joinRoom(roomId, userSession.nickname, userSession.password, userSession.sessionId)
-        .then((data) => {
-          console.log('Successfully joined room:', data);
-          setIsConnecting(false);
-          setError(null);
-        })
-        .catch((error) => {
-          console.error('Failed to join room:', error);
-          setError(error.message || 'Failed to join room. Please check your credentials.');
-          setIsConnecting(false);
-        });
-
-      // Listen for events
-      socket.on('connect', () => {
-        console.log('Connected to socket server');
-        // Don't set isConnecting to false here, wait for room-info
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setError('Failed to connect to chat server. Please check your connection and try again.');
-        setIsConnecting(false);
-      });
-
-      socket.on('error', (error) => {
-        console.error('Socket error:', error);
-        // Don't show connection errors for message sending errors
-        if (!error.message || !error.message.includes('Not in a room')) {
-          setError(error.message || 'Connection error occurred');
-          setIsConnecting(false);
-        }
-      });
-
-      socket.on('message-error', (error) => {
-        console.error('Message error:', error);
-        setError(error.message || 'Failed to send message');
-      });
-
-      socket.on('join-error', (error) => {
-        console.error('Join room error:', error);
-        setError(error.message || 'Failed to join room. Please check your credentials.');
-        setIsConnecting(false);
-      });
-
-      socket.on('room-info', (data) => {
-        console.log('Room info received:', data);
+    // Join room with enhanced error handling
+    const joinRoomWithTimeout = async () => {
+      try {
+        await socketService.joinRoom(
+          roomId,
+          userSession.nickname,
+          userSession.password,
+          userSession.sessionId
+        );
+        console.log('✅ Successfully joined room');
         setIsConnecting(false);
         setError(null);
-      });
+      } catch (error) {
+        console.error('❌ Failed to join room:', error);
+        setError(error.message || 'Failed to join room. Please check your credentials.');
+        setIsConnecting(false);
+      }
+    };
 
-      socket.on('new-message', (message) => {
-        console.log('New message received:', message);
-        setMessages(prev => [...prev, message]);
-      });
+    // Start the join process
+    joinRoomWithTimeout();
 
-      socket.on('user-joined', (data) => {
-        console.log('User joined:', data);
-        setMessages(prev => [...prev, {
-          id: Date.now(),
-          sender: 'System',
-          text: `${data.user.nickname} joined the room`,
-          timestamp: new Date(),
-          isSystem: true
-        }]);
-      });
-
-      socket.on('user-left', (data) => {
-        console.log('User left:', data);
-        setMessages(prev => [...prev, {
-          id: Date.now(),
-          sender: 'System',
-          text: `${data.user.nickname} left the room`,
-          timestamp: new Date(),
-          isSystem: true
-        }]);
-      });
-
-      socket.on('user-typing', (data) => {
-        if (data.nickname !== userSession.nickname) {
-          setTypingUsers(prev => [...prev.filter(u => u !== data.nickname), data.nickname]);
-        }
-      });
-
-      socket.on('user-stop-typing', (data) => {
-        if (data.nickname !== userSession.nickname) {
-          setTypingUsers(prev => prev.filter(u => u !== data.nickname));
-        }
-      });
-
-      socket.on('panic-mode', (data) => {
-        setMessages([]);
-        alert('Panic mode activated! All messages cleared.');
-      });
-
-      socket.on('session-updated', (data) => {
-        console.log('Session updated:', data);
-        const updatedSession = { ...userSession, sessionId: data.sessionId };
-        setUserSession(updatedSession);
-        localStorage.setItem('userSession', JSON.stringify(updatedSession));
-      });
-
-      // Set a timeout for connection
-      const connectionTimeout = setTimeout(() => {
-        if (isConnecting) {
-          console.error('Connection timeout');
-          setError('Connection timeout. Please refresh the page and try again.');
-          setIsConnecting(false);
-        }
-      }, 15000); // Increased to 15 seconds timeout
-
-      return () => {
-        console.log('Cleaning up socket connection');
-        clearTimeout(connectionTimeout);
-        if (socket) {
-          socket.disconnect();
-        }
-      };
-    } catch (err) {
-      console.error('Error setting up socket:', err);
-      setError('Failed to connect to chat server. Please refresh the page and try again.');
+    // Listen for events
+    socket.on('connect', () => {
+      console.log('Connected to socket server');
       setIsConnecting(false);
-    }
-  }, [roomId, userSession, isConnecting]);
+      setError(null);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setError('Failed to connect to chat server. Please check your connection and try again.');
+      setIsConnecting(false);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      if (!error.message || !error.message.includes('Not in a room')) {
+        setError(error.message || 'Connection error occurred');
+        setIsConnecting(false);
+      }
+    });
+
+    socket.on('message-error', (error) => {
+      console.error('Message error:', error);
+      setError(error.message || 'Failed to send message');
+    });
+
+    socket.on('join-error', (error) => {
+      console.error('Join room error:', error);
+      setError(error.message || 'Failed to join room. Please check your credentials.');
+      setIsConnecting(false);
+    });
+
+    socket.on('room-info', (data) => {
+      console.log('Room info received:', data);
+      setIsConnecting(false);
+      setError(null);
+    });
+
+    socket.on('new-message', (message) => {
+      console.log('New message received:', message);
+      setMessages(prev => [...prev, message]);
+    });
+
+    socket.on('user-joined', (data) => {
+      console.log('User joined:', data);
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'System',
+        text: `${data.nickname} joined the room`,
+        timestamp: new Date(),
+        isSystem: true
+      }]);
+    });
+
+    socket.on('user-left', (data) => {
+      console.log('User left:', data);
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'System',
+        text: `${data.nickname} left the room`,
+        timestamp: new Date(),
+        isSystem: true
+      }]);
+    });
+
+    socket.on('user-typing', (data) => {
+      if (data.nickname !== userSession.nickname) {
+        setTypingUsers(prev => [...prev.filter(u => u !== data.nickname), data.nickname]);
+      }
+    });
+
+    socket.on('user-stop-typing', (data) => {
+      if (data.nickname !== userSession.nickname) {
+        setTypingUsers(prev => prev.filter(u => u !== data.nickname));
+      }
+    });
+
+    socket.on('panic-mode', (data) => {
+      setMessages([]);
+      alert('Panic mode activated! All messages cleared.');
+    });
+
+    socket.on('session-updated', (data) => {
+      console.log('Session updated:', data);
+      const updatedSession = { ...userSession, sessionId: data.sessionId };
+      setUserSession(updatedSession);
+      localStorage.setItem('userSession', JSON.stringify(updatedSession));
+    });
+
+    // Set a timeout for connection
+    const connectionTimeout = setTimeout(() => {
+      if (isConnecting) {
+        console.error('Connection timeout');
+        setError('Connection timeout. Please refresh the page and try again.');
+        setIsConnecting(false);
+      }
+    }, 10000); // 10 seconds timeout
+
+    return () => {
+      console.log('Cleaning up socket connection');
+      clearTimeout(connectionTimeout);
+      if (socket) {
+        // Clean up all event listeners
+        socket.off('connect');
+        socket.off('connect_error');
+        socket.off('error');
+        socket.off('message-error');
+        socket.off('join-error');
+        socket.off('room-info');
+        socket.off('new-message');
+        socket.off('user-joined');
+        socket.off('user-left');
+        socket.off('user-typing');
+        socket.off('user-stop-typing');
+        socket.off('panic-mode');
+        socket.off('session-updated');
+        socket.disconnect();
+      }
+    };
+  }, [roomId, userSession]);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || isConnecting) return;
@@ -223,7 +238,7 @@ const ChatRoom = () => {
       const message = {
         text: newMessage.trim(),
         timestamp: new Date(),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       };
 
       console.log('Sending message:', message);

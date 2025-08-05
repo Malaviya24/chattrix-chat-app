@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://chattrix-chat-app.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://chattrix-chat-app.onrender.com');
+console.log('Using API URL:', API_BASE_URL);
 
 class ApiService {
   constructor() {
@@ -14,25 +16,46 @@ class ApiService {
         return this.csrfToken;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/csrf-token`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get CSRF token: ${response.status}`);
-      }
-
-      const data = await response.json();
-      this.csrfToken = data.csrfToken;
-      this.tokenExpiry = Date.now() + (23 * 60 * 60 * 1000); // 23 hours (refresh before 24h expiry)
+      console.log('Fetching CSRF token from:', `${API_BASE_URL}/api/csrf-token`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      return this.csrfToken;
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/csrf-token`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: controller.signal,
+          credentials: 'include'
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.error(`Failed to get CSRF token: ${response.status}`);
+          throw new Error(`Failed to get CSRF token: ${response.status}`);
+        }
+        
+        console.log('CSRF token fetch successful');
+        
+        const data = await response.json();
+        this.csrfToken = data.csrfToken;
+        this.tokenExpiry = Date.now() + (23 * 60 * 60 * 1000); // 23 hours (refresh before 24h expiry)
+        
+        return this.csrfToken;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('CSRF token fetch error:', error);
+        throw error;
+      }
     } catch (error) {
       console.error('CSRF token error:', error);
-      // Return a fallback token for development
+      // For production, we should fail rather than use a fallback token
+      if (process.env.NODE_ENV === 'production') {
+        throw error;
+      }
+      // Return a fallback token for development only
       return 'development-token';
     }
   }
@@ -132,4 +155,4 @@ class ApiService {
 }
 
 const apiService = new ApiService();
-export default apiService; 
+export default apiService;

@@ -21,8 +21,8 @@ class EncryptionUtils {
   // Encrypt data with AES-GCM
   encrypt(text, key) {
     try {
-      const iv = Buffer.from(this.generateIV(), 'hex');
-      const cipher = crypto.createCipher(this.algorithm, Buffer.from(key, 'hex'));
+      const iv = crypto.randomBytes(this.ivLength);
+      const cipher = crypto.createCipherGCM(Buffer.from(key, 'hex'));
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -42,7 +42,7 @@ class EncryptionUtils {
   // Decrypt data with AES-GCM
   decrypt(encryptedData, key, iv, tag) {
     try {
-      const decipher = crypto.createDecipher(this.algorithm, Buffer.from(key, 'hex'));
+      const decipher = crypto.createDecipherGCM(Buffer.from(key, 'hex'));
       decipher.setAuthTag(Buffer.from(tag, 'hex'));
       
       let decrypted = decipher.update(encryptedData, 'hex', 'utf8');

@@ -61,7 +61,7 @@ const CreateRoom = () => {
     generatedPassword += numbers[Math.floor(Math.random() * numbers.length)];
     generatedPassword += symbols[Math.floor(Math.random() * symbols.length)];
     
-    // Fill the rest with random characters
+    // Fill the rest with random characters to meet 8+ character requirement
     const allChars = lowercase + uppercase + numbers + symbols;
     for (let i = 4; i < 12; i++) {
       generatedPassword += allChars[Math.floor(Math.random() * allChars.length)];
@@ -112,13 +112,13 @@ const CreateRoom = () => {
         setExpirationTime(new Date(Date.now() + 15 * 60 * 1000));
       }
       
-      // Store user session data for immediate join
+      // Store user session data for immediate join (without password)
       localStorage.setItem('userSession', JSON.stringify({
         sessionId: response.sessionId || 'temp-session',
         encryptionKey: response.encryptionKey,
         roomId: newRoomId,
-        nickname: nickname,
-        password: password // Store password temporarily for immediate join
+        nickname: nickname
+        // Removed password storage for security
       }));
 
       console.log('User session stored, showing success page with QR code');
@@ -276,6 +276,10 @@ const CreateRoom = () => {
                     <div className={`flex items-center space-x-1 ${/[0-9]/.test(password) ? 'text-green-400' : 'text-gray-500'}`}>
                       <span>{/[0-9]/.test(password) ? '✓' : '○'}</span>
                       <span>Number</span>
+                    </div>
+                    <div className={`flex items-center space-x-1 ${/[!@#$%^&*]/.test(password) ? 'text-green-400' : 'text-gray-500'}`}>
+                      <span>{/[!@#$%^&*]/.test(password) ? '✓' : '○'}</span>
+                      <span>Special char</span>
                     </div>
                   </div>
                 </div>

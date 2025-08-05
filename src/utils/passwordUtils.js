@@ -12,13 +12,16 @@ export const validatePassword = (password) => {
     return 'Password must be at least 8 characters long';
   }
   if (!/[A-Z]/.test(password)) {
-    return 'Password must contain at least one uppercase letter';
+    return 'Password must contain at least one uppercase letter (A-Z)';
   }
   if (!/[a-z]/.test(password)) {
-    return 'Password must contain at least one lowercase letter';
+    return 'Password must contain at least one lowercase letter (a-z)';
   }
   if (!/[0-9]/.test(password)) {
-    return 'Password must contain at least one number';
+    return 'Password must contain at least one number (0-9)';
+  }
+  if (!/[!@#$%^&*]/.test(password)) {
+    return 'Password must contain at least one special character (!@#$%^&*)';
   }
   return null;
 };
