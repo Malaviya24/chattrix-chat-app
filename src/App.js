@@ -18,6 +18,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/create" element={<CreateRoom />} />
             <Route path="/join" element={<JoinRoom />} />
+            <Route path="/join/:roomId" element={<JoinRoom />} />
             <Route path="/room/:roomId" element={<ChatRoom />} />
             <Route path="/panic" element={<PanicMode />} />
           </Routes>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '../utils/ThemeContext';
 import apiService from '../services/api';
@@ -8,6 +8,7 @@ import { validatePassword } from '../utils/passwordUtils';
 const JoinRoom = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { roomId: roomIdFromParams } = useParams(); // Get roomId from URL path
   const { isDarkMode } = useTheme();
   const [roomId, setRoomId] = useState('');
   const [nickname, setNickname] = useState('');
@@ -18,19 +19,40 @@ const JoinRoom = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const roomIdFromUrl = searchParams.get('roomId');
+    // Check for roomId in URL path first, then query params
+    const roomIdFromUrl = roomIdFromParams || searchParams.get('roomId');
     if (roomIdFromUrl) {
       setRoomId(roomIdFromUrl);
+      console.log('Room ID from URL:', roomIdFromUrl);
     }
-  }, [searchParams]);
+  }, [roomIdFromParams, searchParams]);
 
   const handleJoinRoom = async () => {
     // Reset error states
     setError('');
     setPasswordError('');
     
-    if (!nickname.trim() || !password.trim()) {
-      setError('Please enter both nickname and password');
+    // IMPORTANT: Validate all required fields before sending
+    console.log('Form data:', { roomId, nickname, password });
+
+    // Frontend validation
+    if (!roomId || roomId.trim().length === 0) {
+      setError('Room ID is missing from URL');
+      return;
+    }
+    
+    if (!nickname || nickname.trim().length === 0) {
+      setError('Nickname is required');
+      return;
+    }
+    
+    if (!password || password.trim().length === 0) {
+      setError('Password is required');
+      return;
+    }
+
+    if (nickname.trim().length < 2) {
+      setError('Nickname must be at least 2 characters');
       return;
     }
 
@@ -41,25 +63,34 @@ const JoinRoom = () => {
       return;
     }
 
+    // Clean the data
+    const cleanData = {
+      roomId: roomId.trim(),
+      nickname: nickname.trim(),
+      password: password.trim()
+    };
+
+    console.log('Sending clean data:', { ...cleanData, password: '***' });
+
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await apiService.joinRoom(roomId, nickname, password);
+      const response = await apiService.joinRoom(cleanData.roomId, cleanData.nickname, cleanData.password);
       
       // Store user session (without password)
       localStorage.setItem('userSession', JSON.stringify({
         sessionId: response.sessionId,
         encryptionKey: response.encryptionKey,
-        roomId: roomId,
-        nickname: nickname
+        roomId: cleanData.roomId,
+        nickname: cleanData.nickname
         // Removed password storage for security
       }));
 
       console.log('User joined successfully, redirecting to chat room...');
       
       // Automatically redirect to chat room after successful join
-      navigate(`/room/${roomId}`);
+      navigate(`/room/${cleanData.roomId}`);
       
     } catch (error) {
       console.error('Join room error:', error);
@@ -121,6 +152,15 @@ const JoinRoom = () => {
           </div>
 
           <form onSubmit={(e) => { e.preventDefault(); handleJoinRoom(); }} className="space-y-6">
+            {/* Debug info - show current room ID */}
+            {roomId && (
+              <div className={`text-sm p-3 rounded-lg ${
+                isDarkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-700'
+              }`}>
+                ✅ Room ID detected: {roomId}
+              </div>
+            )}
+            
             <div>
               <label className={`block text-sm font-medium mb-3 ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-700'

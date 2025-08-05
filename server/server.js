@@ -452,22 +452,62 @@ io.on('connection', (socket) => {
   
   // Join room
   socket.on('join-room', async (data) => {
-    const { roomId, nickname, password, sessionId, timestamp } = data;
+    console.log('📝 Raw join-room data:', data);
     
-    console.log('🚪 Join room request:', { 
-      roomId, 
-      nickname, 
-      socketId: socket.id,
-      timestamp: new Date(timestamp).toISOString()
-    });
-
     try {
-      
-      if (!roomId || !nickname || !password) {
-        console.error('Missing required fields:', { roomId, nickname, hasPassword: !!password });
-        socket.emit('join-error', { message: 'Missing required fields' });
+      // Extract and validate data
+      const { roomId, nickname, password, sessionId, timestamp } = data || {};
+
+      // Server-side validation with detailed logging
+      if (!data) {
+        console.error('❌ No data received');
+        socket.emit('room-join-error', { message: 'No data provided' });
         return;
       }
+
+      if (!roomId) {
+        console.error('❌ Missing roomId:', { data });
+        socket.emit('room-join-error', { message: 'Room ID is required' });
+        return;
+      }
+
+      if (!nickname) {
+        console.error('❌ Missing nickname:', { data });
+        socket.emit('room-join-error', { message: 'Nickname is required' });
+        return;
+      }
+
+      if (!password) {
+        console.error('❌ Missing password:', { data });
+        socket.emit('room-join-error', { message: 'Password is required' });
+        return;
+      }
+
+      // Additional validation
+      if (typeof roomId !== 'string' || roomId.trim().length === 0) {
+        socket.emit('room-join-error', { message: 'Valid room ID is required' });
+        return;
+      }
+
+      if (typeof nickname !== 'string' || nickname.trim().length < 2) {
+        socket.emit('room-join-error', { message: 'Nickname must be at least 2 characters' });
+        return;
+      }
+
+      if (typeof password !== 'string' || password.length < 8) {
+        socket.emit('room-join-error', { message: 'Password must be at least 8 characters' });
+        return;
+      }
+
+      console.log('✅ Validation passed:', { 
+        roomId, 
+        nickname: nickname.substring(0, 3) + '...', 
+        hasPassword: !!password,
+        socketId: socket.id,
+        timestamp: new Date(timestamp).toISOString()
+      });
+      
+              // Validation already done above, continue with room lookup
       
       let room;
       if (canUseDatabase()) {
