@@ -10,6 +10,8 @@ class SocketService {
     this.socket = null;
     this.encryptionKey = null;
     this.isConnected = false;
+    this.connectionAttempts = 0;
+    this.maxAttempts = 3;
   }
 
   // Initialize socket connection
@@ -19,38 +21,47 @@ class SocketService {
       return this.socket;
     }
 
-    console.log('Creating new socket connection to:', SOCKET_URL);
+    console.log('🔄 Attempting to connect to:', SOCKET_URL);
     
     this.socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
-      forceNew: false,
+      withCredentials: true,
+      transports: ['polling', 'websocket'], // Start with polling for better compatibility
+      timeout: 60000, // Increase timeout to 60 seconds for Render spin-down
+      forceNew: true,
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      withCredentials: true,
-      autoConnect: true
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 10000,
+      maxHttpBufferSize: 1e6,
+      pingTimeout: 60000,
+      pingInterval: 25000
     });
 
+    // Connection event handlers
     this.socket.on('connect', () => {
-      console.log('✅ Connected to Socket.IO server with ID:', this.socket.id);
+      console.log('✅ Connected successfully:', this.socket.id);
       this.isConnected = true;
+      this.connectionAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('🔌 Disconnected from Socket.IO server:', reason);
+      console.log('🔌 Disconnected:', reason);
       this.isConnected = false;
+      if (reason === 'io server disconnect') {
+        // Server disconnected, try to reconnect
+        this.socket.connect();
+      }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error);
-      console.error('Connection details:', {
-        url: SOCKET_URL,
-        error: error.message,
-        type: error.type
-      });
+      console.error('❌ Connection error:', error);
       this.isConnected = false;
+      this.connectionAttempts++;
+      
+      if (this.connectionAttempts >= this.maxAttempts) {
+        console.error('Max connection attempts reached');
+        throw new Error('Failed to connect to server after multiple attempts');
+      }
     });
 
     this.socket.on('error', (error) => {
@@ -127,36 +138,72 @@ class SocketService {
     return this.isConnected;
   }
 
-  // Enhanced room joining with timeout and better error handling
-  joinRoom(roomId, nickname, password, sessionId) {
+  async joinRoom(roomId, nickname, password, sessionId) {
     return new Promise((resolve, reject) => {
-      if (!this.socket || !this.socket.connected) {
-        reject(new Error('Socket not connected'));
+      // Check if socket is connected
+      if (!this.socket) {
+        reject(new Error('Socket not initialized'));
         return;
       }
 
-      // Set timeout for room join
-      const timeout = setTimeout(() => {
-        reject(new Error('Room join timeout - server may be unavailable'));
-      }, 15000); // 15 seconds timeout
+      if (!this.socket.connected) {
+        reject(new Error('Socket not connected to server'));
+        return;
+      }
 
-      // Listen for join response
-      this.socket.once('room-info', (data) => {
-        clearTimeout(timeout);
-        console.log('✅ Room joined successfully:', data);
+      console.log('🚪 Attempting to join room:', { roomId, nickname });
+
+      // Set longer timeout for room join (30 seconds for Render spin-down)
+      const joinTimeout = setTimeout(() => {
+        console.error('⏰ Room join timeout');
+        reject(new Error('Connection timeout. Server might be starting up.'));
+      }, 30000); // 30 seconds timeout
+
+      // Listen for successful room join
+      this.socket.once('room-joined', (data) => {
+        clearTimeout(joinTimeout);
+        console.log('✅ Successfully joined room:', data);
         resolve(data);
       });
 
-      this.socket.once('join-error', (error) => {
-        clearTimeout(timeout);
-        console.error('❌ Room join error:', error);
+      // Listen for room join errors
+      this.socket.once('room-join-error', (error) => {
+        clearTimeout(joinTimeout);
+        console.error('❌ Room join failed:', error);
         reject(new Error(error.message || 'Failed to join room'));
       });
 
-      // Emit join room event
-      console.log('🔄 Attempting to join room:', { roomId, nickname, sessionId });
-      this.socket.emit('join-room', { roomId, nickname, password, sessionId });
+      // Listen for general errors
+      this.socket.once('error', (error) => {
+        clearTimeout(joinTimeout);
+        console.error('❌ Socket error:', error);
+        reject(new Error('Connection error occurred'));
+      });
+
+      // Emit the join room event
+      this.socket.emit('join-room', { 
+        roomId, 
+        nickname, 
+        password,
+        sessionId,
+        timestamp: Date.now()
+      });
     });
+  }
+
+  // Add connection status check method
+  isConnected() {
+    return this.socket && this.socket.connected;
+  }
+
+  // Add reconnection method
+  async reconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return this.connect();
   }
 }
 

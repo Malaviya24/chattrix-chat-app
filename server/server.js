@@ -35,7 +35,7 @@ const {
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO setup with CORS
+// Socket.IO setup with CORS and improved timeouts for Render
 const io = socketIo(server, {
   cors: {
     origin: [
@@ -48,7 +48,11 @@ const io = socketIo(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['polling', 'websocket'], // Start with polling for better compatibility
+  pingTimeout: 60000, // 60 seconds for Render spin-down
+  pingInterval: 25000, // 25 seconds
+  upgradeTimeout: 30000, // 30 seconds
+  allowEIO3: true
 });
 
 // MongoDB connection with retry mechanism
@@ -170,7 +174,17 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     database: canUseDatabase() ? 'Connected' : 'In-Memory Mode',
-    activeConnections: io.engine.clientsCount
+    activeConnections: io.engine.clientsCount,
+    uptime: process.uptime()
+  });
+});
+
+// Additional health check for monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
   });
 });
 
@@ -410,9 +424,13 @@ app.get('/api/rooms/:roomId', async (req, res) => {
   }
 });
 
+// Store for active connections
+const activeRooms = new Map();
+const userSockets = new Map();
+
 // Socket.IO connection handling with improved error handling
 io.on('connection', (socket) => {
-  console.log('🔌 User connected:', socket.id);
+  console.log('👤 New connection:', socket.id, 'at', new Date().toISOString());
   
   // Set up error handling for this socket
   socket.on('error', (error) => {
@@ -434,10 +452,16 @@ io.on('connection', (socket) => {
   
   // Join room
   socket.on('join-room', async (data) => {
+    const { roomId, nickname, password, sessionId, timestamp } = data;
+    
+    console.log('🚪 Join room request:', { 
+      roomId, 
+      nickname, 
+      socketId: socket.id,
+      timestamp: new Date(timestamp).toISOString()
+    });
+
     try {
-      const { roomId, nickname, password, sessionId } = data;
-      
-      console.log('Join room attempt:', { roomId, nickname, sessionId });
       
       if (!roomId || !nickname || !password) {
         console.error('Missing required fields:', { roomId, nickname, hasPassword: !!password });
@@ -559,12 +583,14 @@ io.on('connection', (socket) => {
       socket.emit('session-updated', { sessionId: user.sessionId });
       
       // Send room info
-      socket.emit('room-info', {
+      socket.emit('room-joined', {
         roomId,
         nickname,
         maxUsers: room.maxUsers,
         currentUsers: currentUsers + 1,
-        encryptionKey: room.encryptionKey
+        encryptionKey: room.encryptionKey,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
       });
       
       // Notify others in room
@@ -573,11 +599,14 @@ io.on('connection', (socket) => {
         timestamp: new Date()
       });
       
-      console.log(`✅ ${nickname} joined room ${roomId}`);
-      
+      console.log('✅ User joined successfully:', { roomId, nickname, socketId: socket.id });
+
     } catch (error) {
-      console.error('Join room error:', error);
-      socket.emit('join-error', { message: 'Failed to join room. Please try again.' });
+      console.error('❌ Join room error:', error);
+      socket.emit('room-join-error', { 
+        message: error.message || 'Failed to join room. Please try again.',
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
@@ -774,7 +803,7 @@ io.on('connection', (socket) => {
   
   // Disconnect with improved error handling
   socket.on('disconnect', async (reason) => {
-    console.log(`🔌 User disconnected (${reason}):`, socket.id);
+    console.log('👋 User disconnected:', socket.id, 'Reason:', reason);
     
     if (socket.sessionId) {
       try {
@@ -876,11 +905,13 @@ setInterval(async () => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Chat server running on port ${PORT}`);
-  console.log(`📡 Socket.IO server ready`);
-  console.log(`🔐 AES-GCM encryption enabled`);
-  console.log(`⏰ Message expiration: 5 minutes`);
-  console.log(`🛡️ Security features: CSRF, Rate limiting, Input sanitization`);
-  console.log(`🗄️ MongoDB with TTL indexes for auto-cleanup`);
-  console.log(`🌐 CORS enabled for frontend`);
+  console.log('🚀 Server running on port', PORT);
+  console.log('🕒 Server started at:', new Date().toISOString());
+  console.log('📡 Socket.IO server ready with improved timeouts');
+  console.log('🔐 AES-GCM encryption enabled');
+  console.log('⏰ Message expiration: 24 hours');
+  console.log('🛡️ Security features: CSRF, Rate limiting, Input sanitization');
+  console.log('🗄️ MongoDB with TTL indexes for auto-cleanup');
+  console.log('🌐 CORS enabled for frontend');
+  console.log('💡 Optimized for Render free tier spin-down delays');
 });

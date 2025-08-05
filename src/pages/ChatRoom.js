@@ -70,35 +70,63 @@ const ChatRoom = () => {
   useEffect(() => {
     if (!userSession || !roomId) return;
 
-    console.log('Setting up socket connection...');
-    console.log('User session:', userSession);
-    console.log('Room ID:', roomId);
-    
-    const socket = socketService.connect();
-    setIsConnecting(true);
-    setError(null);
-
-    // Join room with enhanced error handling
-    const joinRoomWithTimeout = async () => {
+    const connectAndJoin = async () => {
       try {
+        setError(null);
+        setIsConnecting(true);
+
+        console.log('🔄 Setting up socket connection...');
+        console.log('User session:', userSession);
+        console.log('Room ID:', roomId);
+        
+        // First establish socket connection
+        const socket = socketService.connect();
+        
+        // Wait for connection to be established
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Initial connection timeout. Server might be starting up.'));
+          }, 60000); // 60 seconds for Render spin-down
+
+          if (socket.connected) {
+            clearTimeout(timeout);
+            resolve();
+          } else {
+            socket.once('connect', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+            
+            socket.once('connect_error', (error) => {
+              clearTimeout(timeout);
+              reject(error);
+            });
+          }
+        });
+
+        console.log('✅ Socket connected, joining room...');
+
+        // Then join the room
         await socketService.joinRoom(
           roomId,
           userSession.nickname,
           userSession.password,
           userSession.sessionId
         );
+        
         console.log('✅ Successfully joined room');
         setIsConnecting(false);
         setError(null);
+        
       } catch (error) {
-        console.error('❌ Failed to join room:', error);
-        setError(error.message || 'Failed to join room. Please check your credentials.');
+        console.error('❌ Connection failed:', error);
+        setError(error.message || 'Failed to connect. Please try again.');
         setIsConnecting(false);
       }
     };
 
-    // Start the join process
-    joinRoomWithTimeout();
+    // Start the connection process
+    connectAndJoin();
 
     // Listen for events
     socket.on('connect', () => {
@@ -307,7 +335,12 @@ const ChatRoom = () => {
         <div className="text-center max-w-md mx-auto p-6">
           <div className="bg-red-500/20 border border-red-400/50 text-red-300 px-6 py-4 rounded-xl mb-4">
             <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
-            <p className="text-sm">{error}</p>
+            <p className="text-sm mb-2">{error}</p>
+            {error.includes('starting up') && (
+              <p className="text-xs opacity-75">
+                💡 The server is waking up from sleep mode. This may take 30-60 seconds on the first request.
+              </p>
+            )}
           </div>
           <button
             onClick={() => window.location.reload()}
@@ -315,6 +348,9 @@ const ChatRoom = () => {
           >
             Try Again
           </button>
+          <p className="text-xs opacity-75 mt-4">
+            If this persists, please wait a moment and try again.
+          </p>
         </div>
       </div>
     );
@@ -435,7 +471,10 @@ const ChatRoom = () => {
         {isConnecting && (
           <div className="text-center text-gray-500">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500 mx-auto mb-2"></div>
-            Connecting to server...
+            <p>Connecting to server...</p>
+            <p className="text-xs opacity-75 mt-1">
+              This may take up to 60 seconds if the server is starting up
+            </p>
           </div>
         )}
         
